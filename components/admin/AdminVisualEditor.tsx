@@ -762,7 +762,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       if (!activeBlock) return;
 
       updateDragPreviewPlacement(
-        getCrossSectionDragPreviewPlacement({
+        getBlockDragPreviewPlacement({
           config: currentConfig,
           activeBlock,
           pointer: dragPointerRef.current,
@@ -798,7 +798,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
 
   function updateCrossSectionDragPreview(activeBlock: Block) {
     const pointer = dragPointerRef.current;
-    const next = getCrossSectionDragPreviewPlacement({
+    const next = getBlockDragPreviewPlacement({
       config,
       activeBlock,
       pointer,
@@ -1376,7 +1376,7 @@ function getNow() {
   return typeof performance === "undefined" ? Date.now() : performance.now();
 }
 
-function getCrossSectionDragPreviewPlacement({
+function getBlockDragPreviewPlacement({
   config,
   activeBlock,
   pointer,
@@ -1392,11 +1392,13 @@ function getCrossSectionDragPreviewPlacement({
   previousPlacement?: DragPreviewPlacement | null;
 }): DragPreviewPlacement | null {
   const pointerTargetSectionId = getTargetSectionIdFromDrag(pointer, dragRect, activeBlock.sectionId);
-  const targetSectionId = pointerTargetSectionId;
+  const targetSectionId = pointerTargetSectionId ?? getSourceSectionIdFromDrag(pointer, dragRect, activeBlock.sectionId);
 
   if (!targetSectionId) return null;
 
-  const targetBlocks = config.blocks.filter((block) => block.sectionId === targetSectionId).sort(bySortOrder);
+  const targetBlocks = config.blocks
+    .filter((block) => block.sectionId === targetSectionId && block.id !== activeBlock.id)
+    .sort(bySortOrder);
   const targetIndex =
     getInsertionIndexFromPointer({
       targetBlocks,
@@ -1412,6 +1414,20 @@ function getCrossSectionDragPreviewPlacement({
   const placement = getPlacementFromDrag({ sectionId: targetSectionId, block: activeBlock, pointer, dragRect, device });
 
   return { blockId: activeBlock.id, targetSectionId, targetIndex, ...placement };
+}
+
+function getSourceSectionIdFromDrag(pointer: Point | null, dragRect: MeasuredRect | null, sourceSectionId: string) {
+  if (!pointer && !dragRect) return null;
+  const sourceRect = findAdminSectionElement(sourceSectionId)?.getBoundingClientRect() ?? null;
+  if (!sourceRect) return null;
+
+  const intentPoint = getDragIntentPoint(pointer, dragRect);
+  const pointerInside = pointer ? isPointInRect(pointer, sourceRect) : false;
+  const intentInside = intentPoint ? isPointInRect(intentPoint, sourceRect) : false;
+  const overlapArea = dragRect ? getRectIntersectionArea(dragRect, sourceRect) : 0;
+  const dragArea = dragRect ? dragRect.width * dragRect.height : 0;
+  const overlapRatio = dragArea > 0 ? overlapArea / dragArea : 0;
+  return pointerInside || intentInside || overlapRatio >= 0.08 ? sourceSectionId : null;
 }
 
 function getPlacementFromDrag({
@@ -1876,10 +1892,15 @@ function EditableSection({
   hideHeader?: boolean;
 }) {
   const { setNodeRef } = useDroppable({ id: `section:${section.id}` });
+  const isSameSectionPreview =
+    Boolean(dragPreviewBlock) &&
+    dragPreviewPlacement?.targetSectionId === section.id &&
+    dragPreviewBlock?.sectionId === section.id;
   const previewIndex =
     dragPreviewBlock && dragPreviewPlacement?.targetSectionId === section.id
       ? Math.max(0, Math.min(dragPreviewPlacement.targetIndex, blocks.length))
       : null;
+  const shouldRenderDropPreview = previewIndex !== null && !isSameSectionPreview;
   const shouldShowBlockGrid = hideHeader || blocks.length > 0 || previewIndex !== null;
   return (
     <section
@@ -1928,7 +1949,7 @@ function EditableSection({
           >
             {blocks.map((block, index) => (
               <Fragment key={block.id}>
-                {previewIndex === index && dragPreviewBlock ? (
+                {shouldRenderDropPreview && previewIndex === index && dragPreviewBlock ? (
                   <BlockDropPreview
                     block={dragPreviewBlock}
                     device={device}
@@ -1940,6 +1961,11 @@ function EditableSection({
                   displaySize={resizeDrafts[block.id]?.size ?? getBlockSize(block, device)}
                   device={device}
                   isDragOverlayActive={activeDragBlockId === block.id}
+                  previewPlacement={
+                    activeDragBlockId === block.id && dragPreviewPlacement?.targetSectionId === section.id
+                      ? { columnStart: dragPreviewPlacement.columnStart, rowStart: dragPreviewPlacement.rowStart }
+                      : undefined
+                  }
                   onEdit={() => onEditBlock(block.id)}
                   onDelete={() => onDeleteBlock(block.id)}
                   onSelect={() => onSelectBlock(block.id)}
@@ -1949,7 +1975,7 @@ function EditableSection({
                 />
               </Fragment>
             ))}
-            {previewIndex === blocks.length && dragPreviewBlock ? (
+            {shouldRenderDropPreview && previewIndex === blocks.length && dragPreviewBlock ? (
               <BlockDropPreview
                 block={dragPreviewBlock}
                 device={device}
@@ -1985,6 +2011,7 @@ function SortableBlock({
   displaySize,
   device,
   isDragOverlayActive,
+  previewPlacement,
   onEdit,
   onDelete,
   onSelect,
@@ -1996,6 +2023,7 @@ function SortableBlock({
   displaySize: BlockSize;
   device: LayoutDevice;
   isDragOverlayActive: boolean;
+  previewPlacement?: BlockPlacementDraft;
   onEdit: () => void;
   onDelete: () => void;
   onSelect: () => void;
@@ -2010,6 +2038,9 @@ function SortableBlock({
   const activeDisplaySize = localResizeDraft?.size ?? displaySize;
   const activeGridSpan = localResizeDraft?.gridSpan ?? getDefaultGridSpan(activeDisplaySize, device);
   const activeRowSpan = localResizeDraft?.rowSpan ?? getDefaultRowSpan(activeDisplaySize);
+  const displayBlock = previewPlacement
+    ? { ...block, placements: { ...block.placements, [device]: previewPlacement } }
+    : block;
   const setBlockNodeRef = useCallback(
     (node: HTMLDivElement | null) => {
       blockNodeRef.current = node;
@@ -2018,10 +2049,11 @@ function SortableBlock({
     [setNodeRef]
   );
   const resizeStyle = {
-    ...getAdminBlockGridStyle(block, device, activeDisplaySize),
+    ...getAdminBlockGridStyle(displayBlock, device, activeDisplaySize),
     gridColumnEnd: `span ${activeGridSpan}`,
     gridRowEnd: `span ${activeRowSpan}`
   };
+  const visualTransform = isDragOverlayActive && previewPlacement ? undefined : CSS.Transform.toString(transform);
 
   function startResize(event: React.PointerEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -2094,11 +2126,15 @@ function SortableBlock({
       ref={setBlockNodeRef}
       data-admin-block="true"
       data-admin-block-id={block.id}
-      style={{ transform: CSS.Transform.toString(transform), transition, ...resizeStyle }}
+      style={{ transform: visualTransform, transition, ...resizeStyle }}
       className={cn(
         "admin-draggable group relative cursor-grab will-change-transform active:cursor-grabbing transition-all duration-200 ease-out",
         blockSizeClassByDevice[device][activeDisplaySize],
-        isDragging || isDragOverlayActive ? "z-20 scale-[1.025] opacity-20" : "",
+        isDragging || isDragOverlayActive
+          ? previewPlacement
+            ? "z-20 opacity-35 ring-2 ring-[#1479FF]/15"
+            : "z-20 scale-[1.025] opacity-20"
+          : "",
         isResizing ? "z-30" : ""
       )}
       onClick={onSelect}

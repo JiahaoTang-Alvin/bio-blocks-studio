@@ -2295,6 +2295,7 @@ function EditableSection({
                   device={device}
                   layoutStyle={compactedGridStyles.get(item.block.id)}
                   isDragOverlayActive={activeDragBlockId === item.block.id}
+                  disableSortableTransform={activeDragBlockId !== null}
                   hideOriginalDuringDrag={false}
                   removeFromFlowDuringDrag={false}
                   onEdit={() => onEditBlock(item.block.id)}
@@ -2312,6 +2313,7 @@ function EditableSection({
                 displaySize={resizeDrafts[dragPreviewBlock.id]?.size ?? getBlockSize(dragPreviewBlock, device)}
                 device={device}
                 isDragOverlayActive={activeDragBlockId === dragPreviewBlock.id}
+                disableSortableTransform={activeDragBlockId !== null}
                 layoutStyle={undefined}
                 hideOriginalDuringDrag
                 removeFromFlowDuringDrag
@@ -2372,6 +2374,7 @@ function SortableBlock({
   device,
   layoutStyle,
   isDragOverlayActive,
+  disableSortableTransform,
   hideOriginalDuringDrag,
   removeFromFlowDuringDrag,
   onEdit,
@@ -2386,6 +2389,7 @@ function SortableBlock({
   device: LayoutDevice;
   layoutStyle?: React.CSSProperties;
   isDragOverlayActive: boolean;
+  disableSortableTransform: boolean;
   hideOriginalDuringDrag: boolean;
   removeFromFlowDuringDrag: boolean;
   onEdit: () => void;
@@ -2415,7 +2419,9 @@ function SortableBlock({
     gridColumnEnd: `span ${activeGridSpan}`,
     gridRowEnd: `span ${activeRowSpan}`
   };
-  const visualTransform = isDragOverlayActive || removeFromFlowDuringDrag ? undefined : CSS.Translate.toString(transform);
+  const visualTransform =
+    disableSortableTransform || isDragOverlayActive || removeFromFlowDuringDrag ? undefined : CSS.Translate.toString(transform);
+  const visualTransition = disableSortableTransform ? undefined : transition;
 
   function startResize(event: React.PointerEvent<HTMLButtonElement>) {
     event.preventDefault();
@@ -2488,7 +2494,7 @@ function SortableBlock({
       ref={setBlockNodeRef}
       data-admin-block="true"
       data-admin-block-id={block.id}
-      style={{ transform: visualTransform, transition, ...resizeStyle }}
+      style={{ transform: visualTransform, transition: visualTransition, ...resizeStyle }}
       className={cn(
         "admin-draggable group relative cursor-grab will-change-transform active:cursor-grabbing transition-all duration-200 ease-out",
         blockSizeClassByDevice[device][activeDisplaySize],

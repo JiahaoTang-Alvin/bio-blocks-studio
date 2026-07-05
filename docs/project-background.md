@@ -20,7 +20,9 @@ The project should feel like an actual usable personal page, not a marketing lan
 
 Sections are text-shaped full-width blocks. They are not containers that own block cards.
 
-Block cards can be top-level cards by using the internal `__top_level__` section id. Top-level block cards and text sections share one vertical content-order axis. This lets a text section move above or below the top-level block grid without making block cards feel like children of that section.
+Block cards can be top-level cards by using the internal `__top_level__` section id. Top-level block cards and text sections share one vertical content-order axis. This lets a text section move above or below top-level block cards without making block cards feel like children of that section.
+
+Do not normalize top-level block `sortOrder` as if it were section-local order. A top-level block's `sortOrder` controls where it appears relative to text sections, so unrelated top-level siblings should keep their global order when another block is dragged or resized.
 
 Do not reintroduce visible blank sections as placeholders. If blocks are detached from a section, make them top-level blocks.
 

@@ -47,19 +47,20 @@ This document records the current admin editor behavior and the main implementat
 - Sections behave as text-shaped blocks, not containers that own block cards.
 - Block cards can be top-level items by using the internal `__top_level__` section id; these blocks do not belong to any section.
 - The top-level block grid and text sections share one vertical content-order axis, so a text section can be moved above or below the top-level block grid.
-- The top-level block grid order is stored in `settings.topLevelBlocksSortOrder`; it is not represented by a visible or editable blank section.
+- Top-level block cards keep their own `sortOrder` on the shared content axis; they are not represented by a visible or editable blank section.
 - Moving a section only moves that section text. Any block cards that were still attached to that section are remapped to top-level blocks instead of moving with the section or attaching to the section that moved up.
 - Deleting a section does not delete the block cards under it. Those blocks are remapped to top-level blocks.
 - Empty sections render as text-only rows; the editor does not create visible blank section placeholders.
 - Section title hover in the visual editor does not add a blue background.
 - Dragging over a section does not tint the whole section blue; only the normal `放到这里` placeholder is used when a block placement preview is needed.
 - Section delete is placed in the modal footer on the left, matching the block delete placement.
-- Block dragging within the same section updates order live.
+- Block dragging within the same section updates only the dragged block's grid placement. It must not renumber sibling blocks or move top-level siblings across section headings.
 - Block dragging across sections uses a drag overlay plus a temporary target placeholder.
 - The overlay follows the pointer while the real block remains as a faint placeholder at the original location.
 - Cross-section placement is previewed with a same-sized dashed placeholder, which pushes target-section blocks away before drop.
 - Dragging a block records its logical grid column and row in the active device mode, clamped to the valid range for that block size. This supports intentional empty spaces and diagonal placements, such as one small block at top-left and another at bottom-right.
 - While dragging within the same section, a same-sized in-flow `放到这里` placeholder moves to the intended logical grid cell before mouseup, so nearby blocks avoid the target cell during preview. The original sortable node is kept mounted for dnd-kit but removed from normal flow and hidden, so the old position does not keep occupying space.
+- Normalizing block order preserves top-level block `sortOrder` values, because top-level blocks share vertical order with text sections instead of using section-local numbering.
 - Preview placement changes use a lightweight FLIP pass over admin grids, so blocks that avoid the placeholder move through a short transition instead of hard-jumping.
 - Sortable block transforms use translation only, not scale, because mixed-size blocks should never be visually resized by dnd-kit while sorting.
 - Cross-section insertion resolves the target section only after the drag intent point leaves the source section and enters another section's real rectangle. Then it simulates each possible CSS grid insertion slot and chooses the slot closest to the dragged card's projected position. It intentionally does not rely on dnd-kit's `overBlock`, because `overBlock` can be stale or misleading when the pointer is between blocks or when a preview placeholder is present.

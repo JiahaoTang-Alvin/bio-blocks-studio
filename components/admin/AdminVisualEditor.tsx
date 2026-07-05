@@ -480,7 +480,18 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     targetIndex: number,
     placement?: BlockPlacementDraft
   ) {
-    return normalizeBlocks(moveBlockToSection(config.blocks, blockId, targetSectionId, targetIndex)).map((block) =>
+    const activeBlock = config.blocks.find((block) => block.id === blockId);
+    if (!activeBlock) return config.blocks;
+
+    if (activeBlock.sectionId === targetSectionId) {
+      return config.blocks.map((block) =>
+        block.id === blockId ? applyBlockPlacement(block, editorDevice, placement) : block
+      );
+    }
+
+    const movedBlocks = moveBlockToSection(config.blocks, blockId, targetSectionId, targetIndex);
+    const stableBlocks = preserveTopLevelSiblingSortOrders(movedBlocks, config.blocks, blockId);
+    return normalizeBlocks(stableBlocks).map((block) =>
       block.id === blockId ? applyBlockPlacement(block, editorDevice, placement) : block
     );
   }
@@ -760,7 +771,18 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     if (targetIndex < 0) return;
     if (activeBlock.sectionId === targetSectionId && sourceIndex === targetIndex) return;
 
-    update({ ...config, blocks: normalizeBlocks(moveBlockToSection(config.blocks, activeId, targetSectionId, targetIndex)) });
+    updateDragPreviewPlacement({
+      blockId: activeId,
+      targetSectionId,
+      targetIndex,
+      ...getPlacementFromDrag({
+        sectionId: targetSectionId,
+        block: activeBlock,
+        pointer: dragPointerRef.current,
+        dragRect: getCurrentDragRect(),
+        device: editorDevice
+      })
+    });
   }
 
   function onDragEnd(event: DragEndEvent) {
@@ -3303,11 +3325,30 @@ function normalizeBlocks(blocks: Block[]) {
   }
   const normalized = new Map<string, Block>();
   for (const [sectionId, sectionBlocks] of bySection.entries()) {
-    for (const block of normalizeSortOrder(sectionBlocks.sort(bySortOrder))) {
+    const sortedBlocks = sectionBlocks.sort(bySortOrder);
+    const nextBlocks = sectionId === topLevelBlockSectionId ? sortedBlocks : normalizeSortOrder(sortedBlocks);
+    for (const block of nextBlocks) {
       normalized.set(block.id, { ...block, sectionId });
     }
   }
   return blocks.map((block) => normalized.get(block.id) ?? block);
+}
+
+function preserveTopLevelSiblingSortOrders(nextBlocks: Block[], previousBlocks: Block[], activeBlockId: string) {
+  const previousSortOrderById = new Map(
+    previousBlocks
+      .filter((block) => block.id !== activeBlockId && block.sectionId === topLevelBlockSectionId)
+      .map((block) => [block.id, block.sortOrder])
+  );
+
+  return nextBlocks.map((block) => {
+    const previousSortOrder = previousSortOrderById.get(block.id);
+    if (block.sectionId !== topLevelBlockSectionId || previousSortOrder === undefined) {
+      return block;
+    }
+
+    return { ...block, sortOrder: previousSortOrder };
+  });
 }
 
 function modalTitle(modal: NonNullable<ModalState>) {

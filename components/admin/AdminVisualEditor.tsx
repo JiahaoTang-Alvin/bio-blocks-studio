@@ -199,6 +199,16 @@ type ContentFlowItem =
   | { type: "section"; id: string; section: Section }
   | { type: "top-level-block"; id: string; block: Block };
 
+type SectionDragPreview = {
+  sectionId: string;
+  targetIndex: number;
+};
+
+type EditorContentItem =
+  | { id: string; type: "top-level-blocks"; blocks: Block[]; sortOrder: number }
+  | { id: string; type: "section"; section: Section; sortOrder: number }
+  | { id: string; type: "section-preview"; section: Section };
+
 export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig }) {
   const [config, setConfig] = useState(initialConfig);
   const [modal, setModal] = useState<ModalState>(null);
@@ -209,6 +219,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
   const [resizeDrafts, setResizeDrafts] = useState<Record<string, BlockResizeDraft>>({});
   const [activeDragBlockId, setActiveDragBlockId] = useState<string | null>(null);
   const [activeDragSectionId, setActiveDragSectionId] = useState<string | null>(null);
+  const [sectionDragPreview, setSectionDragPreview] = useState<SectionDragPreview | null>(null);
   const [dragOverlayRect, setDragOverlayRect] = useState<DragOverlayRect | null>(null);
   const [dragPreviewPlacement, setDragPreviewPlacement] = useState<DragPreviewPlacement | null>(null);
   const [hasMounted, setHasMounted] = useState(false);
@@ -224,6 +235,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
   const dragPointerSourceRef = useRef<"native" | "synthetic" | null>(null);
   const dragOverlayRectRef = useRef<DragOverlayRect | null>(null);
   const activeDragBlockIdRef = useRef<string | null>(null);
+  const sectionDragPreviewRef = useRef<SectionDragPreview | null>(null);
   const dragPreviewPlacementRef = useRef<DragPreviewPlacement | null>(null);
   const dragPreviewSyncFrameRef = useRef<number | null>(null);
   const configRef = useRef(config);
@@ -279,6 +291,10 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
   const activeDragSection = useMemo(
     () => (activeDragSectionId ? config.sections.find((section) => section.id === activeDragSectionId) ?? null : null),
     [activeDragSectionId, config.sections]
+  );
+  const editorContentItems = useMemo(
+    () => getEditorContentItems(renderModel, sectionDragPreview, activeDragSection),
+    [activeDragSection, renderModel, sectionDragPreview]
   );
   const topLevelSection = useMemo<Section>(
     () => ({
@@ -567,6 +583,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       window.addEventListener("pointermove", updateDragPointerFromPointerEvent);
       window.addEventListener("touchmove", updateDragPointerFromTouchEvent, { passive: true });
       setActiveDragSectionId(sectionId);
+      updateSectionDragPreview(activeId, null, startPointer);
       setActiveDragBlockId(null);
       setDragOverlayRect(null);
       updateDragPreviewPlacement(null);
@@ -594,10 +611,6 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
 
   function onDragMove(event: DragMoveEvent) {
     const activeId = String(event.active.id);
-    if (activeId.startsWith("section-order:")) return;
-    const activeBlock = config.blocks.find((block) => block.id === activeId);
-    if (!activeBlock) return;
-
     const startPointer = dragStartPointerRef.current;
     if (startPointer) {
       const fallbackPointer = {
@@ -614,22 +627,51 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       }
     }
 
+    if (activeId.startsWith("section-order:")) {
+      updateSectionDragPreview(activeId, null, dragPointerRef.current);
+      return;
+    }
+
+    const activeBlock = config.blocks.find((block) => block.id === activeId);
+    if (!activeBlock) return;
+
     updateCrossSectionDragPreview(activeBlock);
   }
 
-  function reorderSectionContent(activeId: string, overId: string | null, pointer: Point | null) {
+  function updateSectionDragPreview(activeId: string, overId: string | null, pointer: Point | null) {
+    const next = getSectionDragPreviewTarget(activeId, overId, pointer);
+    if (!next) return null;
+
+    const current = sectionDragPreviewRef.current;
+    if (!current || current.sectionId !== next.sectionId || current.targetIndex !== next.targetIndex) {
+      sectionDragPreviewRef.current = next;
+      setSectionDragPreview(next);
+    }
+    return next;
+  }
+
+  function getSectionDragPreviewTarget(activeId: string, overId: string | null, pointer: Point | null) {
     const activeSectionId = activeId.replace("section-order:", "");
-    if (activeSectionId === topLevelBlockSectionId) return;
+    if (activeSectionId === topLevelBlockSectionId) return null;
+
+    const currentRenderModel = buildRenderModel(configRef.current);
+    const flowItems = getContentFlowForSectionMove(currentRenderModel, activeSectionId);
+    const targetIndex = getSectionContentTargetIndex(flowItems, overId, pointer);
+    if (targetIndex === null) return null;
+
+    return { sectionId: activeSectionId, targetIndex: Math.max(0, Math.min(targetIndex, flowItems.length)) };
+  }
+
+  function commitSectionContentMove(activeId: string, targetIndex: number | null) {
+    const activeSectionId = activeId.replace("section-order:", "");
+    if (activeSectionId === topLevelBlockSectionId || targetIndex === null) return;
 
     setConfig((current) => {
       const activeSection = current.sections.find((section) => section.id === activeSectionId);
       if (!activeSection) return current;
-
       const now = new Date().toISOString();
       const currentRenderModel = buildRenderModel(current);
       const flowItems = getContentFlowForSectionMove(currentRenderModel, activeSectionId);
-      const targetIndex = getSectionContentTargetIndex(flowItems, overId, pointer);
-      if (targetIndex === null) return current;
 
       const nextItems = [...flowItems];
       nextItems.splice(Math.max(0, Math.min(targetIndex, flowItems.length)), 0, {
@@ -691,7 +733,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     if (activeId.startsWith("section-order:") || overId.startsWith("section-order:")) {
       updateDragPreviewPlacement(null);
       if (activeId.startsWith("section-order:")) {
-        reorderSectionContent(activeId, overId, dragPointerRef.current);
+        updateSectionDragPreview(activeId, overId, dragPointerRef.current);
       }
       return;
     }
@@ -727,12 +769,15 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
 
   function onDragEnd(event: DragEndEvent) {
     const previewPlacement = dragPreviewPlacementRef.current;
+    const sectionPreview = sectionDragPreviewRef.current;
     const finalPointer = dragPointerRef.current;
     const finalDragRect = getCurrentDragRect();
     const { active, over } = event;
     const activeId = String(active.id);
     setActiveDragBlockId(null);
     setActiveDragSectionId(null);
+    setSectionDragPreview(null);
+    sectionDragPreviewRef.current = null;
     setDragOverlayRect(null);
     dragStartPointerRef.current = null;
     dragPointerRef.current = null;
@@ -747,7 +792,11 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     updateDragPreviewPlacement(null);
 
     if (activeId.startsWith("section-order:")) {
-      reorderSectionContent(activeId, over ? String(over.id) : null, finalPointer);
+      const finalPreview =
+        sectionPreview?.sectionId === activeId.replace("section-order:", "")
+          ? sectionPreview
+          : getSectionDragPreviewTarget(activeId, over ? String(over.id) : null, finalPointer);
+      commitSectionContentMove(activeId, finalPreview?.targetIndex ?? null);
       return;
     }
 
@@ -819,6 +868,8 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
   function onDragCancel() {
     setActiveDragBlockId(null);
     setActiveDragSectionId(null);
+    setSectionDragPreview(null);
+    sectionDragPreviewRef.current = null;
     setDragOverlayRect(null);
     dragStartPointerRef.current = null;
     dragPointerRef.current = null;
@@ -985,12 +1036,12 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
                 />
                 <section className="grid min-w-0 gap-8">
                   <SortableContext
-                    items={renderModel.orderedContentItems
+                    items={editorContentItems
                       .filter((item) => item.type === "section")
                       .map((item) => `section-order:${item.id}`)}
                     strategy={verticalListSortingStrategy}
                   >
-                    {renderModel.orderedContentItems.map((item) =>
+                    {editorContentItems.map((item) =>
                       item.type === "top-level-blocks" ? (
                         <Fragment key={item.id}>
                           <EditableSection
@@ -1022,6 +1073,8 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
                             hideHeader
                           />
                         </Fragment>
+                      ) : item.type === "section-preview" ? (
+                        <SectionDropPreview key={item.id} section={item.section} />
                       ) : (
                         <SortableSection key={item.id} section={item.section}>
                           {({ sectionHandleProps, sectionContainerProps }) => (
@@ -1401,6 +1454,55 @@ function getContentFlowForSectionMove(renderModel: ReturnType<typeof buildRender
   return flowItems;
 }
 
+function getEditorContentItems(
+  renderModel: ReturnType<typeof buildRenderModel>,
+  preview: SectionDragPreview | null,
+  activeSection: Section | null
+): EditorContentItem[] {
+  if (!preview || !activeSection) {
+    return renderModel.orderedContentItems;
+  }
+
+  const flowItems = getContentFlowForSectionMove(renderModel, preview.sectionId);
+  const nextItems: Array<ContentFlowItem | { type: "section-preview"; id: string; section: Section }> = [...flowItems];
+  nextItems.splice(Math.max(0, Math.min(preview.targetIndex, flowItems.length)), 0, {
+    type: "section-preview",
+    id: `section-preview:${preview.sectionId}`,
+    section: activeSection
+  });
+
+  const contentItems: EditorContentItem[] = [];
+  let pendingBlocks: Block[] = [];
+
+  function flushBlocks() {
+    if (pendingBlocks.length === 0) return;
+    contentItems.push({
+      id: `top-level-blocks:${pendingBlocks[0].id}`,
+      type: "top-level-blocks",
+      blocks: pendingBlocks,
+      sortOrder: pendingBlocks[0].sortOrder
+    });
+    pendingBlocks = [];
+  }
+
+  for (const item of nextItems) {
+    if (item.type === "top-level-block") {
+      pendingBlocks.push(item.block);
+      continue;
+    }
+
+    flushBlocks();
+    if (item.type === "section-preview") {
+      contentItems.push(item);
+    } else {
+      contentItems.push({ id: item.id, type: "section", section: item.section, sortOrder: item.section.sortOrder });
+    }
+  }
+  flushBlocks();
+
+  return contentItems;
+}
+
 function getSectionContentTargetIndex(flowItems: ContentFlowItem[], overId: string | null, pointer: Point | null) {
   if (!overId) {
     return pointer ? getSectionTargetIndexFromPointer(flowItems, pointer) : null;
@@ -1520,6 +1622,18 @@ function SectionDragOverlayPreview({ section }: { section: Section }) {
         {section.emoji ? <span className="ml-1 text-[#1479FF]">{section.emoji}</span> : null}
       </h2>
       {section.description ? <p className="mt-1 text-sm text-[#64748B]">{section.description}</p> : null}
+    </div>
+  );
+}
+
+function SectionDropPreview({ section }: { section: Section }) {
+  return (
+    <div className="pointer-events-none rounded-[20px] border border-dashed border-[#1479FF]/45 bg-[#EDF6FF]/55 px-3 py-2">
+      <h2 className="text-2xl font-bold tracking-normal text-[#111]/55">
+        {section.title}
+        {section.emoji ? <span className="ml-1 text-[#1479FF]/55">{section.emoji}</span> : null}
+      </h2>
+      {section.description ? <p className="mt-1 text-sm text-[#64748B]/60">{section.description}</p> : null}
     </div>
   );
 }

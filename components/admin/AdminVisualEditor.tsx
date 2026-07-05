@@ -1931,10 +1931,14 @@ function EditableSection({
   }
   const compactedGridStyles = getCompactedBlockGridStyles(
     gridItems.map((item) => {
+      const resizeDraft = resizeDrafts[item.block.id];
+      const resizedBlock = resizeDraft
+        ? { ...item.block, responsiveSizes: { ...item.block.responsiveSizes, [device]: resizeDraft.size } }
+        : item.block;
       const block =
         item.type === "preview" && item.placement
-          ? { ...item.block, placements: { ...item.block.placements, [device]: item.placement } }
-          : item.block;
+          ? { ...resizedBlock, placements: { ...resizedBlock.placements, [device]: item.placement } }
+          : resizedBlock;
       return { id: item.type === "preview" ? blockDropPreviewId : item.block.id, block };
     }),
     device

@@ -19,7 +19,7 @@ export function bySortOrder<T extends { sortOrder: number }>(a: T, b: T) {
 }
 
 export type ContentOrderItem =
-  | { id: "top-level-blocks"; type: "top-level-blocks"; sortOrder: number }
+  | { id: string; type: "top-level-blocks"; blocks: Block[]; sortOrder: number }
   | { id: string; type: "section"; section: Section; sortOrder: number };
 
 export function buildRenderModel(config: SiteConfig): {
@@ -53,17 +53,41 @@ export function buildRenderModel(config: SiteConfig): {
     blocksBySection.set(sectionId, [...blocks].sort(bySortOrder));
   }
 
+  const contentSourceItems = [
+    ...topLevelBlocks.map((block) => ({ id: block.id, type: "top-level-block" as const, block, sortOrder: block.sortOrder })),
+    ...orderedSections.map((section) => ({ id: section.id, type: "section" as const, section, sortOrder: section.sortOrder }))
+  ].sort((a, b) => (a.sortOrder === b.sortOrder ? (a.type === "top-level-block" ? -1 : 1) : a.sortOrder - b.sortOrder));
+  const orderedContentItems: ContentOrderItem[] = [];
+  let pendingTopLevelBlocks: Block[] = [];
+
+  function flushTopLevelBlocks() {
+    if (pendingTopLevelBlocks.length === 0) return;
+    orderedContentItems.push({
+      id: `top-level-blocks:${pendingTopLevelBlocks[0].id}`,
+      type: "top-level-blocks",
+      blocks: pendingTopLevelBlocks,
+      sortOrder: pendingTopLevelBlocks[0].sortOrder
+    });
+    pendingTopLevelBlocks = [];
+  }
+
+  for (const item of contentSourceItems) {
+    if (item.type === "top-level-block") {
+      pendingTopLevelBlocks.push(item.block);
+      continue;
+    }
+
+    flushTopLevelBlocks();
+    orderedContentItems.push({ id: item.section.id, type: "section", section: item.section, sortOrder: item.section.sortOrder });
+  }
+  flushTopLevelBlocks();
+
   return {
     profile: config.profile,
     orderedSections,
     blocksBySection,
     topLevelBlocks: [...topLevelBlocks].sort(bySortOrder),
-    orderedContentItems: [
-      ...(topLevelBlocks.length > 0
-        ? [{ id: "top-level-blocks" as const, type: "top-level-blocks" as const, sortOrder: config.settings.topLevelBlocksSortOrder ?? 0 }]
-        : []),
-      ...orderedSections.map((section) => ({ id: section.id, type: "section" as const, section, sortOrder: section.sortOrder }))
-    ].sort((a, b) => (a.sortOrder === b.sortOrder ? (a.type === "top-level-blocks" ? -1 : 1) : a.sortOrder - b.sortOrder))
+    orderedContentItems
   };
 }
 

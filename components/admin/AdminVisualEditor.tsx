@@ -170,7 +170,6 @@ type BlockPlacementDraft = {
   rowStart?: number;
 };
 
-const topLevelContentOrderId = "section-order:__top_level_blocks__";
 const blockDropPreviewId = "__block_drop_preview__";
 
 type RectLike = Pick<DOMRectReadOnly, "left" | "top" | "width" | "height">;
@@ -196,6 +195,10 @@ type GridPlacement = {
   rowSpan: number;
 };
 
+type ContentFlowItem =
+  | { type: "section"; id: string; section: Section }
+  | { type: "top-level-block"; id: string; block: Block };
+
 export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig }) {
   const [config, setConfig] = useState(initialConfig);
   const [modal, setModal] = useState<ModalState>(null);
@@ -205,6 +208,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
   const [resizePreviewSize, setResizePreviewSize] = useState<BlockSize | null>(null);
   const [resizeDrafts, setResizeDrafts] = useState<Record<string, BlockResizeDraft>>({});
   const [activeDragBlockId, setActiveDragBlockId] = useState<string | null>(null);
+  const [activeDragSectionId, setActiveDragSectionId] = useState<string | null>(null);
   const [dragOverlayRect, setDragOverlayRect] = useState<DragOverlayRect | null>(null);
   const [dragPreviewPlacement, setDragPreviewPlacement] = useState<DragPreviewPlacement | null>(null);
   const [hasMounted, setHasMounted] = useState(false);
@@ -239,9 +243,11 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       if (activeId.startsWith("section-order:")) {
         return closestCenter({
           ...args,
-          droppableContainers: args.droppableContainers.filter((container) =>
-            String(container.id).startsWith("section-order:")
-          )
+          droppableContainers: args.droppableContainers.filter((container) => {
+            const id = String(container.id);
+            if (id.startsWith("section-order:")) return true;
+            return blockSectionById.get(id) === topLevelBlockSectionId;
+          })
         });
       }
 
@@ -269,6 +275,10 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
   const activeDragBlock = useMemo(
     () => (activeDragBlockId ? config.blocks.find((block) => block.id === activeDragBlockId) ?? null : null),
     [activeDragBlockId, config.blocks]
+  );
+  const activeDragSection = useMemo(
+    () => (activeDragSectionId ? config.sections.find((section) => section.id === activeDragSectionId) ?? null : null),
+    [activeDragSectionId, config.sections]
   );
   const topLevelSection = useMemo<Section>(
     () => ({
@@ -546,6 +556,23 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
 
   function onDragStart(event: DragStartEvent) {
     const activeId = String(event.active.id);
+    if (activeId.startsWith("section-order:")) {
+      const sectionId = activeId.replace("section-order:", "");
+      const startPointer = getClientPoint(event.activatorEvent);
+      dragStartPointerRef.current = startPointer;
+      dragPointerRef.current = startPointer;
+      dragPointerOffsetRef.current = null;
+      dragPointerUpdatedAtRef.current = startPointer ? getNow() : 0;
+      dragPointerSourceRef.current = startPointer ? "native" : null;
+      window.addEventListener("pointermove", updateDragPointerFromPointerEvent);
+      window.addEventListener("touchmove", updateDragPointerFromTouchEvent, { passive: true });
+      setActiveDragSectionId(sectionId);
+      setActiveDragBlockId(null);
+      setDragOverlayRect(null);
+      updateDragPreviewPlacement(null);
+      return;
+    }
+
     const activeBlock = config.blocks.find((block) => block.id === activeId);
     const activeRect = getAdminBlockVisualRect(activeId) ?? event.active.rect.current.initial;
     const startPointer = getClientPoint(event.activatorEvent);
@@ -590,41 +617,55 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     updateCrossSectionDragPreview(activeBlock);
   }
 
-  function reorderSections(activeId: string, overId: string) {
+  function reorderSectionContent(activeId: string, overId: string | null, pointer: Point | null) {
     const activeSectionId = activeId.replace("section-order:", "");
-    if (activeSectionId === topLevelBlockSectionId || activeId === topLevelContentOrderId) return;
+    if (activeSectionId === topLevelBlockSectionId) return;
 
     setConfig((current) => {
-      const currentRenderModel = buildRenderModel(current);
-      const orderedItems = currentRenderModel.orderedContentItems.map((item) =>
-        item.type === "top-level-blocks" ? topLevelContentOrderId : `section-order:${item.id}`
-      );
-      const oldIndex = orderedItems.findIndex((id) => id === activeId);
-      const newIndex = orderedItems.findIndex((id) => id === overId);
-      if (oldIndex < 0 || newIndex < 0 || oldIndex === newIndex) {
-        return current;
-      }
+      const activeSection = current.sections.find((section) => section.id === activeSectionId);
+      if (!activeSection) return current;
 
       const now = new Date().toISOString();
-      const nextItems = [...orderedItems];
-      const [moved] = nextItems.splice(oldIndex, 1);
-      nextItems.splice(newIndex, 0, moved);
-      const sectionSortOrderById = new Map<string, number>();
-      let nextTopLevelBlocksSortOrder = current.settings.topLevelBlocksSortOrder ?? 0;
-      nextItems.forEach((itemId, index) => {
-        const sortOrder = index + 1;
-        if (itemId === topLevelContentOrderId) {
-          nextTopLevelBlocksSortOrder = sortOrder;
-          return;
-        }
-        sectionSortOrderById.set(itemId.replace("section-order:", ""), sortOrder);
+      const currentRenderModel = buildRenderModel(current);
+      const flowItems = getContentFlowForSectionMove(currentRenderModel, activeSectionId);
+      const targetIndex = getSectionContentTargetIndex(flowItems, overId, pointer);
+      if (targetIndex === null) return current;
+
+      const nextItems = [...flowItems];
+      nextItems.splice(Math.max(0, Math.min(targetIndex, flowItems.length)), 0, {
+        type: "section",
+        id: activeSectionId,
+        section: activeSection
       });
+
+      const sectionSortOrderById = new Map<string, number>();
+      const topLevelBlockSortOrderById = new Map<string, number>();
+      nextItems.forEach((item, index) => {
+        const sortOrder = index + 1;
+        if (item.type === "section") {
+          sectionSortOrderById.set(item.id, sortOrder);
+        } else {
+          topLevelBlockSortOrderById.set(item.id, sortOrder);
+        }
+      });
+
       const nextBlocks = current.blocks.map((block) =>
-        block.sectionId === activeSectionId ? { ...block, sectionId: topLevelBlockSectionId, updatedAt: now } : block
+        block.sectionId === activeSectionId || topLevelBlockSortOrderById.has(block.id)
+          ? {
+              ...block,
+              sectionId: topLevelBlockSectionId,
+              sortOrder: topLevelBlockSortOrderById.get(block.id) ?? block.sortOrder,
+              updatedAt: block.sectionId === activeSectionId ? now : block.updatedAt
+            }
+          : block
       );
       const nextSections = current.sections.map((section) =>
         sectionSortOrderById.has(section.id)
-          ? { ...section, sortOrder: sectionSortOrderById.get(section.id) ?? section.sortOrder, updatedAt: section.id === activeSectionId ? now : section.updatedAt }
+          ? {
+              ...section,
+              sortOrder: sectionSortOrderById.get(section.id) ?? section.sortOrder,
+              updatedAt: section.id === activeSectionId ? now : section.updatedAt
+            }
           : section
       );
 
@@ -632,10 +673,10 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       return {
         ...current,
         sections: nextSections,
-        blocks: normalizeBlocks(nextBlocks),
+        blocks: nextBlocks,
         settings: {
           ...current.settings,
-          topLevelBlocksSortOrder: nextTopLevelBlocksSortOrder
+          topLevelBlocksSortOrder: undefined
         }
       };
     });
@@ -649,8 +690,8 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
 
     if (activeId.startsWith("section-order:") || overId.startsWith("section-order:")) {
       updateDragPreviewPlacement(null);
-      if (activeId.startsWith("section-order:") && overId.startsWith("section-order:")) {
-        reorderSections(activeId, overId);
+      if (activeId.startsWith("section-order:")) {
+        reorderSectionContent(activeId, overId, dragPointerRef.current);
       }
       return;
     }
@@ -691,6 +732,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     const { active, over } = event;
     const activeId = String(active.id);
     setActiveDragBlockId(null);
+    setActiveDragSectionId(null);
     setDragOverlayRect(null);
     dragStartPointerRef.current = null;
     dragPointerRef.current = null;
@@ -705,6 +747,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     updateDragPreviewPlacement(null);
 
     if (activeId.startsWith("section-order:")) {
+      reorderSectionContent(activeId, over ? String(over.id) : null, finalPointer);
       return;
     }
 
@@ -775,6 +818,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
 
   function onDragCancel() {
     setActiveDragBlockId(null);
+    setActiveDragSectionId(null);
     setDragOverlayRect(null);
     dragStartPointerRef.current = null;
     dragPointerRef.current = null;
@@ -941,17 +985,17 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
                 />
                 <section className="grid min-w-0 gap-8">
                   <SortableContext
-                    items={renderModel.orderedContentItems.map((item) =>
-                      item.type === "top-level-blocks" ? topLevelContentOrderId : `section-order:${item.id}`
-                    )}
+                    items={renderModel.orderedContentItems
+                      .filter((item) => item.type === "section")
+                      .map((item) => `section-order:${item.id}`)}
                     strategy={verticalListSortingStrategy}
                   >
                     {renderModel.orderedContentItems.map((item) =>
                       item.type === "top-level-blocks" ? (
-                        <SortableTopLevelBlocks key={item.id}>
+                        <Fragment key={item.id}>
                           <EditableSection
                             section={topLevelSection}
-                            blocks={renderModel.topLevelBlocks}
+                            blocks={item.blocks}
                             onEditSection={() => undefined}
                             onDeleteSection={() => undefined}
                             onEditBlock={(blockId) => setModal({ type: "block", blockId })}
@@ -977,10 +1021,10 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
                             sectionHandleProps={{}}
                             hideHeader
                           />
-                        </SortableTopLevelBlocks>
+                        </Fragment>
                       ) : (
                         <SortableSection key={item.id} section={item.section}>
-                          {({ sectionHandleProps }) => (
+                          {({ sectionHandleProps, sectionContainerProps }) => (
                             <EditableSection
                               section={item.section}
                               blocks={renderModel.blocksBySection.get(item.id) ?? []}
@@ -1007,6 +1051,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
                                 })
                               }
                               sectionHandleProps={sectionHandleProps}
+                              sectionContainerProps={sectionContainerProps}
                             />
                           )}
                         </SortableSection>
@@ -1041,6 +1086,8 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
                     height={dragOverlayRect.height}
                   />
                 </div>
+              ) : activeDragSection ? (
+                <SectionDragOverlayPreview section={activeDragSection} />
               ) : null}
             </DragOverlay>
           </DndContext>
@@ -1333,6 +1380,104 @@ function moveItem<T>(items: T[], oldIndex: number, newIndex: number) {
   return next;
 }
 
+function getContentFlowForSectionMove(renderModel: ReturnType<typeof buildRenderModel>, activeSectionId: string): ContentFlowItem[] {
+  const flowItems: ContentFlowItem[] = [];
+
+  for (const item of renderModel.orderedContentItems) {
+    if (item.type === "top-level-blocks") {
+      flowItems.push(...item.blocks.map((block) => ({ type: "top-level-block" as const, id: block.id, block })));
+      continue;
+    }
+
+    if (item.id === activeSectionId) {
+      const releasedBlocks = renderModel.blocksBySection.get(activeSectionId) ?? [];
+      flowItems.push(...releasedBlocks.map((block) => ({ type: "top-level-block" as const, id: block.id, block })));
+      continue;
+    }
+
+    flowItems.push({ type: "section", id: item.id, section: item.section });
+  }
+
+  return flowItems;
+}
+
+function getSectionContentTargetIndex(flowItems: ContentFlowItem[], overId: string | null, pointer: Point | null) {
+  if (!overId) {
+    return pointer ? getSectionTargetIndexFromPointer(flowItems, pointer) : null;
+  }
+
+  if (overId.startsWith("section-order:")) {
+    const sectionId = overId.replace("section-order:", "");
+    const sectionIndex = flowItems.findIndex((item) => item.type === "section" && item.id === sectionId);
+    if (sectionIndex < 0) return pointer ? getSectionTargetIndexFromPointer(flowItems, pointer) : null;
+
+    const sectionRect = findAdminSectionElement(sectionId)?.getBoundingClientRect();
+    const insertAfter = pointer && sectionRect ? pointer.y > sectionRect.top + sectionRect.height / 2 : false;
+    return sectionIndex + (insertAfter ? 1 : 0);
+  }
+
+  const blockIndex = getTopLevelBlockInsertionIndex(flowItems, overId, pointer);
+  if (blockIndex !== null) {
+    return getFlowIndexForTopLevelBlockInsertion(flowItems, blockIndex);
+  }
+
+  return pointer ? getSectionTargetIndexFromPointer(flowItems, pointer) : null;
+}
+
+function getSectionTargetIndexFromPointer(flowItems: ContentFlowItem[], pointer: Point) {
+  const measuredItems = flowItems
+    .map((item, index) => {
+      const rect =
+        item.type === "section"
+          ? findAdminSectionElement(item.id)?.getBoundingClientRect()
+          : findAdminBlockElement(item.id)?.getBoundingClientRect();
+      return rect ? { index, rect } : null;
+    })
+    .filter((item): item is { index: number; rect: DOMRect } => item !== null)
+    .sort((a, b) => a.rect.top - b.rect.top);
+
+  for (const item of measuredItems) {
+    if (pointer.y < item.rect.top + item.rect.height / 2) return item.index;
+  }
+
+  return flowItems.length;
+}
+
+function getTopLevelBlockInsertionIndex(flowItems: ContentFlowItem[], overId: string, pointer: Point | null) {
+  const topLevelBlocks = flowItems.filter((item): item is Extract<ContentFlowItem, { type: "top-level-block" }> => item.type === "top-level-block");
+  const overBlockIndex = topLevelBlocks.findIndex((item) => item.id === overId);
+  if (overBlockIndex < 0) return null;
+  if (!pointer) return overBlockIndex;
+
+  return getInsertionIndexFromBlockRects(
+    topLevelBlocks.map((item) => item.block),
+    pointer
+  );
+}
+
+function getFlowIndexForTopLevelBlockInsertion(flowItems: ContentFlowItem[], blockInsertionIndex: number) {
+  if (blockInsertionIndex <= 0) {
+    const firstBlockIndex = flowItems.findIndex((item) => item.type === "top-level-block");
+    return firstBlockIndex < 0 ? flowItems.length : firstBlockIndex;
+  }
+
+  let seenBlocks = 0;
+  for (let index = 0; index < flowItems.length; index += 1) {
+    if (flowItems[index].type !== "top-level-block") continue;
+    if (seenBlocks === blockInsertionIndex) return index;
+    seenBlocks += 1;
+  }
+
+  let lastBlockIndex = -1;
+  for (let index = flowItems.length - 1; index >= 0; index -= 1) {
+    if (flowItems[index].type === "top-level-block") {
+      lastBlockIndex = index;
+      break;
+    }
+  }
+  return lastBlockIndex < 0 ? flowItems.length : lastBlockIndex + 1;
+}
+
 function DragOverlayBlockPreview({ block, width, height }: { block: Block; width: number; height: number }) {
   return (
     <div
@@ -1363,6 +1508,18 @@ function DragOverlayBlockPreview({ block, width, height }: { block: Block; width
           ) : null}
         </div>
       )}
+    </div>
+  );
+}
+
+function SectionDragOverlayPreview({ section }: { section: Section }) {
+  return (
+    <div className="pointer-events-none w-[min(520px,70vw)] rounded-[20px] border border-[#111]/80 bg-white px-3 py-2 opacity-95">
+      <h2 className="text-2xl font-bold tracking-normal">
+        {section.title}
+        {section.emoji ? <span className="ml-1 text-[#1479FF]">{section.emoji}</span> : null}
+      </h2>
+      {section.description ? <p className="mt-1 text-sm text-[#64748B]">{section.description}</p> : null}
     </div>
   );
 }
@@ -1860,37 +2017,23 @@ function SortableSection({
   section: Section;
   children: (props: {
     sectionHandleProps: React.HTMLAttributes<HTMLButtonElement>;
+    sectionContainerProps: React.HTMLAttributes<HTMLDivElement> & { ref: (node: HTMLDivElement | null) => void };
   }) => React.ReactNode;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: `section-order:${section.id}`
   });
   return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn(
-        "rounded-[24px] transition-colors duration-150",
-        isDragging ? "relative z-20 bg-[#F3F4F6] shadow-inner opacity-80" : ""
-      )}
-    >
-      {children({ sectionHandleProps: { ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement> })}
-    </div>
-  );
-}
-
-function SortableTopLevelBlocks({ children }: { children: React.ReactNode }) {
-  const { setNodeRef, transform, transition, isDragging } = useSortable({
-    id: topLevelContentOrderId
-  });
-  return (
-    <div
-      ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={isDragging ? "relative z-20 opacity-60" : ""}
-    >
-      {children}
-    </div>
+    <Fragment>
+      {children({
+        sectionHandleProps: { ...attributes, ...listeners } as React.HTMLAttributes<HTMLButtonElement>,
+        sectionContainerProps: {
+          ref: setNodeRef,
+          style: { transform: CSS.Transform.toString(transform), transition },
+          className: cn("rounded-[20px] transition-opacity duration-150", isDragging ? "relative z-20 opacity-30" : "")
+        }
+      })}
+    </Fragment>
   );
 }
 
@@ -1911,6 +2054,7 @@ function EditableSection({
   resizeDrafts,
   onResizeDraft,
   sectionHandleProps,
+  sectionContainerProps,
   hideHeader = false
 }: {
   section: Section;
@@ -1929,6 +2073,7 @@ function EditableSection({
   resizeDrafts: Record<string, BlockResizeDraft>;
   onResizeDraft: (blockId: string, draft: BlockResizeDraft | null) => void;
   sectionHandleProps: React.HTMLAttributes<HTMLButtonElement>;
+  sectionContainerProps?: React.HTMLAttributes<HTMLDivElement> & { ref?: (node: HTMLDivElement | null) => void };
   hideHeader?: boolean;
 }) {
   const { setNodeRef } = useDroppable({ id: `section:${section.id}` });
@@ -1983,7 +2128,10 @@ function EditableSection({
       className="admin-grid-container grid gap-4 rounded-[24px] p-2 transition"
     >
       {hideHeader ? null : (
-        <div className="group relative flex items-center justify-between gap-3">
+        <div
+          {...sectionContainerProps}
+          className={cn("group relative flex items-center justify-between gap-3", sectionContainerProps?.className)}
+        >
           <div className="min-w-0">
             <button
               type="button"

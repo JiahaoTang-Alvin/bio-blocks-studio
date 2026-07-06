@@ -8,7 +8,7 @@ export const defaultSiteConfig: SiteConfig = {
   profile: {
     avatarUrl: "/default-avatar.svg",
     displayName: "Your Name",
-    username: "your-handle",
+    username: "",
     headline: "Builder / Designer / Writer",
     bio: "A short introduction about who you are, what you build, and where people can find your work.",
     location: "Your city",
@@ -222,7 +222,7 @@ export const defaultSiteConfig: SiteConfig = {
       id: "github",
       sectionId: topLevelBlockSectionId,
       title: "GitHub",
-      subtitle: "@your-handle",
+      subtitle: "",
       description: "",
       type: "social",
       size: "small-square",

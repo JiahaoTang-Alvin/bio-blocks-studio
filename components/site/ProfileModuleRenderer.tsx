@@ -26,13 +26,15 @@ export function ProfileModuleRenderer({ module, profile }: { module: ProfileModu
           className="h-32 w-32 rounded-full border border-[#EAEAEA] object-cover shadow-soft"
         />
       );
-    case "name":
+    case "name": {
+      const username = isPlaceholderHandle(profile.username) ? "" : profile.username;
       return (
         <div className="grid gap-1">
           <h1 className="text-3xl font-semibold tracking-normal">{profile.displayName}</h1>
-          {profile.username ? <p className="text-sm text-[var(--site-muted)]">@{profile.username}</p> : null}
+          {username ? <p className="text-sm text-[var(--site-muted)]">@{username}</p> : null}
         </div>
       );
+    }
     case "headline":
       return <p className="text-base font-medium text-[#333]">{profile.headline}</p>;
     case "bio":
@@ -120,4 +122,8 @@ export function ProfileModuleRenderer({ module, profile }: { module: ProfileModu
     default:
       return null;
   }
+}
+
+function isPlaceholderHandle(value?: string) {
+  return value?.trim().replace(/^@/, "").toLowerCase() === "your-handle";
 }

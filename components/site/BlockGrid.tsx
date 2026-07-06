@@ -17,7 +17,17 @@ const gapSizes: Record<SectionGap, string> = {
   lg: "1.5rem"
 };
 
-export function BlockGrid({ blocks, layout, gap }: { blocks: Block[]; layout: SectionLayout; gap: SectionGap }) {
+export function BlockGrid({
+  blocks,
+  layout,
+  gap,
+  hidePlaceholderContent = false
+}: {
+  blocks: Block[];
+  layout: SectionLayout;
+  gap: SectionGap;
+  hidePlaceholderContent?: boolean;
+}) {
   if (blocks.length === 0) {
     return null;
   }
@@ -34,6 +44,7 @@ export function BlockGrid({ blocks, layout, gap }: { blocks: Block[]; layout: Se
         <BlockCard
           key={block.id}
           block={block}
+          hidePlaceholderContent={hidePlaceholderContent}
           layoutStyle={getPublicBlockPlacementStyle(block, {
             mobile: mobileStyles.get(block.id),
             desktop: desktopStyles.get(block.id)

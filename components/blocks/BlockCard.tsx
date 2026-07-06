@@ -19,6 +19,7 @@ export function BlockCard({
   compact = false,
   disableActions = false,
   disableHoverReveal = false,
+  hidePlaceholderContent = false,
   withLayout = true,
   layoutStyle,
   className
@@ -27,15 +28,17 @@ export function BlockCard({
   compact?: boolean;
   disableActions?: boolean;
   disableHoverReveal?: boolean;
+  hidePlaceholderContent?: boolean;
   withLayout?: boolean;
   layoutStyle?: React.CSSProperties & Record<string, string | number | undefined>;
   className?: string;
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const displayBlock = hidePlaceholderContent ? getDisplayBlock(block) : block;
 
-  if (isSectionTextBlock(block)) {
-    return <SectionTextCard block={block} withLayout={withLayout} compact={compact} layoutStyle={layoutStyle} className={className} />;
+  if (isSectionTextBlock(displayBlock)) {
+    return <SectionTextCard block={displayBlock} withLayout={withLayout} compact={compact} layoutStyle={layoutStyle} className={className} />;
   }
 
   function runAction() {
@@ -118,7 +121,7 @@ export function BlockCard({
             hasCover && (disableHoverReveal ? "opacity-0" : "opacity-0 group-hover:opacity-100")
           )}
         >
-          <div>{renderBlock(block, hasCover)}</div>
+          <div>{renderBlock(displayBlock, hasCover)}</div>
           <div className="flex items-center justify-between gap-3">
             <div className="flex min-w-0 flex-wrap gap-2">
               {block.badge ? (
@@ -150,14 +153,23 @@ export function BlockCard({
       {modalOpen ? (
         <Dialog onClose={() => setModalOpen(false)}>
           <div className="grid gap-3">
-            <p className="text-sm font-medium text-[#64748B]">{block.subtitle}</p>
-            <h3 className="text-2xl font-semibold">{block.title}</h3>
-            <p className="leading-7 text-[#555]">{block.description || "No additional details yet."}</p>
+            <p className="text-sm font-medium text-[#64748B]">{displayBlock.subtitle}</p>
+            <h3 className="text-2xl font-semibold">{displayBlock.title}</h3>
+            <p className="leading-7 text-[#555]">{displayBlock.description || "No additional details yet."}</p>
           </div>
         </Dialog>
       ) : null}
     </>
   );
+}
+
+function getDisplayBlock(block: Block): Block {
+  if (!isPlaceholderHandle(block.subtitle)) return block;
+  return { ...block, subtitle: "" };
+}
+
+function isPlaceholderHandle(value?: string) {
+  return value?.trim().replace(/^@/, "").toLowerCase() === "your-handle";
 }
 
 function renderBlock(block: Block, hideTitle = false) {

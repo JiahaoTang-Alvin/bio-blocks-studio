@@ -71,8 +71,8 @@ select {
 }
 
 .block-placement {
-  grid-column-start: var(--block-mobile-column-start, auto);
-  grid-row-start: var(--block-mobile-row-start, auto);
+  grid-column: var(--block-mobile-column-start, auto) / var(--block-mobile-column-end, span 12);
+  grid-row: var(--block-mobile-row-start, auto) / var(--block-mobile-row-end, span 1);
 }
 
 @media (min-width: 768px) {
@@ -81,8 +81,8 @@ select {
   }
 
   .block-placement {
-    grid-column-start: var(--block-desktop-column-start, auto);
-    grid-row-start: var(--block-desktop-row-start, auto);
+    grid-column: var(--block-desktop-column-start, auto) / var(--block-desktop-column-end, span 12);
+    grid-row: var(--block-desktop-row-start, auto) / var(--block-desktop-row-end, span 1);
   }
 }
 

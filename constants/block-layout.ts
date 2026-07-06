@@ -29,33 +29,13 @@ export const blockSizeClassByDevice: Record<LayoutDevice, Record<BlockSize, stri
 
 export const blockSizeClass = blockSizeClassByDevice.desktop;
 
-const publicMobileBlockSizeClass: Record<BlockSize, string> = {
-  "small-square": "col-span-6 row-span-1",
-  wide: "col-span-12 row-span-1",
-  "large-square": "col-span-12 row-span-2",
-  "full-wide": "col-span-12 row-span-1",
-  tall: "col-span-6 row-span-2",
-  "section-text": "col-span-12 row-span-1"
-};
-
-const publicDesktopBlockSizeClass: Record<BlockSize, string> = {
-  "small-square": "md:col-span-4 md:row-span-1",
-  wide: "md:col-span-8 md:row-span-1",
-  "large-square": "md:col-span-8 md:row-span-2",
-  "full-wide": "md:col-span-12 md:row-span-1",
-  tall: "md:col-span-4 md:row-span-2",
-  "section-text": "md:col-span-12 md:row-span-1"
-};
-
 export function getBlockSize(block: Block, device: LayoutDevice) {
   if (block.type === "section") return "section-text";
   return block.responsiveSizes?.[device] ?? block.size;
 }
 
-export function getPublicBlockSizeClass(block: Block) {
-  const mobileSize = getBlockSize(block, "mobile");
-  const desktopSize = getBlockSize(block, "desktop");
-  return `block-placement ${publicMobileBlockSizeClass[mobileSize]} ${publicDesktopBlockSizeClass[desktopSize]}`;
+export function getPublicBlockSizeClass() {
+  return "block-placement";
 }
 
 export function getDefaultGridSpan(size: BlockSize, device: LayoutDevice) {
@@ -243,14 +223,25 @@ export function getPublicBlockPlacementStyle(
   block: Block,
   compacted?: Partial<Record<LayoutDevice, CSSProperties>>
 ): CSSProperties & Record<string, string | number | undefined> {
+  const mobileSize = getBlockSize(block, "mobile");
+  const desktopSize = getBlockSize(block, "desktop");
   const mobileColumnStart = compacted?.mobile?.gridColumnStart ?? getBlockColumnStart(block, "mobile");
   const desktopColumnStart = compacted?.desktop?.gridColumnStart ?? getBlockColumnStart(block, "desktop");
   const mobileRowStart = compacted?.mobile?.gridRowStart ?? getBlockRowStart(block, "mobile");
   const desktopRowStart = compacted?.desktop?.gridRowStart ?? getBlockRowStart(block, "desktop");
+  const mobileColumnEnd = compacted?.mobile?.gridColumnEnd ?? `span ${getDefaultGridSpan(mobileSize, "mobile")}`;
+  const desktopColumnEnd = compacted?.desktop?.gridColumnEnd ?? `span ${getDefaultGridSpan(desktopSize, "desktop")}`;
+  const mobileRowEnd = compacted?.mobile?.gridRowEnd ?? `span ${getDefaultRowSpan(mobileSize)}`;
+  const desktopRowEnd = compacted?.desktop?.gridRowEnd ?? `span ${getDefaultRowSpan(desktopSize)}`;
+
   return {
     "--block-mobile-column-start": mobileColumnStart,
+    "--block-mobile-column-end": mobileColumnEnd,
     "--block-desktop-column-start": desktopColumnStart,
+    "--block-desktop-column-end": desktopColumnEnd,
     "--block-mobile-row-start": mobileRowStart,
-    "--block-desktop-row-start": desktopRowStart
+    "--block-mobile-row-end": mobileRowEnd,
+    "--block-desktop-row-start": desktopRowStart,
+    "--block-desktop-row-end": desktopRowEnd
   };
 }

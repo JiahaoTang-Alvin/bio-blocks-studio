@@ -85,7 +85,7 @@ export function BlockCard({
           "group relative overflow-hidden rounded-[20px] border border-[var(--site-border)] p-4 shadow-soft transition",
           "focus:outline-none focus:ring-4 focus:ring-[#1677FF]/10",
           clickable && "cursor-pointer hover:-translate-y-0.5 hover:border-[#1677FF]/30",
-          withLayout && !compact && getPublicBlockSizeClass(block),
+          withLayout && !compact && getPublicBlockSizeClass(),
           compact && "min-h-36",
           className
         )}
@@ -208,7 +208,7 @@ function SectionTextCard({
       className={cn(
         "relative min-w-0 px-1 py-1",
         sectionTextAlign[titleAlign],
-        withLayout && !compact && getPublicBlockSizeClass(block),
+        withLayout && !compact && getPublicBlockSizeClass(),
         className
       )}
     >

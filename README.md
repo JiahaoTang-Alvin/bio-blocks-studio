@@ -11,8 +11,8 @@ This project is intended to become a reusable public template. The current sampl
 - Visual desktop and mobile layout editing
 - Project settings for admin naming, public page title, description, URL, and simple theme controls
 - Block cards for projects, links, images, text, status updates, videos, and social links
-- Text-section rows that can be moved independently from block cards
-- Top-level block grid for cards that do not belong to a section
+- Full-width text blocks for section-like headings; they are blocks, not containers
+- Shared content ordering so cards can sit above, below, or between text blocks
 - Image upload and crop workflow with fixed and custom crop ratios
 - JSON config export and import from the admin editor
 - JSON config persisted through Vercel Blob
@@ -85,8 +85,8 @@ Never expose `BLOB_READ_WRITE_TOKEN`, `ADMIN_PASSWORD_HASH`, or `SESSION_SECRET`
 The site is driven by one validated config object:
 
 - `profile`: avatar, name, bio, tags, social links, and profile module visibility
-- `sections`: text rows used as visual separators or headings
-- `blocks`: project/link/image/text/social/video/status cards
+- `sections`: legacy field kept empty by the current editor
+- `blocks`: project/link/image/text/social/video/status cards plus full-width `section` text blocks
 - `theme`: colors, radius, shadow, and font settings
 - `settings`: project name, public site title, description, URL, feature toggles, and internal layout order metadata
 

@@ -14,14 +14,16 @@ export const blockSizeClassByDevice: Record<LayoutDevice, Record<BlockSize, stri
     wide: "col-span-8 row-span-1",
     "large-square": "col-span-8 row-span-2",
     "full-wide": "col-span-12 row-span-1",
-    tall: "col-span-4 row-span-2"
+    tall: "col-span-4 row-span-2",
+    "section-text": "col-span-12 row-span-1"
   },
   mobile: {
     "small-square": "col-span-6 row-span-1",
     wide: "col-span-12 row-span-1",
     "large-square": "col-span-12 row-span-2",
     "full-wide": "col-span-12 row-span-1",
-    tall: "col-span-6 row-span-2"
+    tall: "col-span-6 row-span-2",
+    "section-text": "col-span-12 row-span-1"
   }
 };
 
@@ -32,7 +34,8 @@ const publicMobileBlockSizeClass: Record<BlockSize, string> = {
   wide: "col-span-12 row-span-1",
   "large-square": "col-span-12 row-span-2",
   "full-wide": "col-span-12 row-span-1",
-  tall: "col-span-6 row-span-2"
+  tall: "col-span-6 row-span-2",
+  "section-text": "col-span-12 row-span-1"
 };
 
 const publicDesktopBlockSizeClass: Record<BlockSize, string> = {
@@ -40,10 +43,12 @@ const publicDesktopBlockSizeClass: Record<BlockSize, string> = {
   wide: "md:col-span-8 md:row-span-1",
   "large-square": "md:col-span-8 md:row-span-2",
   "full-wide": "md:col-span-12 md:row-span-1",
-  tall: "md:col-span-4 md:row-span-2"
+  tall: "md:col-span-4 md:row-span-2",
+  "section-text": "md:col-span-12 md:row-span-1"
 };
 
 export function getBlockSize(block: Block, device: LayoutDevice) {
+  if (block.type === "section") return "section-text";
   return block.responsiveSizes?.[device] ?? block.size;
 }
 
@@ -54,6 +59,7 @@ export function getPublicBlockSizeClass(block: Block) {
 }
 
 export function getDefaultGridSpan(size: BlockSize, device: LayoutDevice) {
+  if (size === "section-text") return 12;
   if (device === "mobile") {
     return size === "small-square" || size === "tall" ? 6 : 12;
   }

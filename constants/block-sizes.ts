@@ -5,7 +5,8 @@ export const blockSizes: BlockSize[] = [
   "wide",
   "large-square",
   "full-wide",
-  "tall"
+  "tall",
+  "section-text"
 ];
 
 export const blockSizeLabels: Record<BlockSize, string> = {
@@ -13,5 +14,6 @@ export const blockSizeLabels: Record<BlockSize, string> = {
   wide: "横向 2 格",
   "large-square": "大方块 2x2",
   "full-wide": "整行",
-  tall: "竖向"
+  tall: "竖向",
+  "section-text": "文本 Block"
 };

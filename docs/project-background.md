@@ -1,6 +1,6 @@
 # Project Background
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 ## Purpose
 
@@ -18,15 +18,15 @@ The project should feel like an actual usable personal page, not a marketing lan
 
 ## Important Mental Model
 
-Sections are text-shaped full-width blocks. They are not containers that own block cards.
+The old `sections` concept is now represented as `Block` records with `type: "section"` and `size: "section-text"`. They are full-width text blocks, not containers that own block cards.
 
-Block cards can be top-level cards by using the internal `__top_level__` section id. Top-level block cards and text sections share one vertical content-order axis. This lets a text section move above or below top-level block cards without making block cards feel like children of that section.
+All content blocks use the internal `__top_level__` section id. Normal cards and full-width text blocks share one vertical content-order axis. This lets a text block move above, below, or between card groups without making cards feel like children of that text block.
 
 Do not normalize top-level block `sortOrder` as if it were section-local order. A top-level block's `sortOrder` controls where it appears relative to text sections, so unrelated top-level siblings should keep their global order when another block is dragged or resized.
 
-Block cards should be able to move before or after a text section on the shared content axis. The editor should not force a block into the grid below a section just because the pointer is near that section.
+Block cards should be able to move before or after a text block on the shared content axis. The editor should not force a card into a hidden section-owned grid just because the pointer is near a heading.
 
-All block cards must be stored as top-level cards. If an older config has `block.sectionId` pointing at a section, normalize it into the shared content flow and rewrite the block to `__top_level__`; do not preserve section-owned card groups.
+If an older config has `sections`, normalize each section into a `type: "section"` block. If an older config has `block.sectionId` pointing at a section, normalize it into the shared content flow and rewrite the block to `__top_level__`; do not preserve section-owned card groups.
 
 Do not reintroduce visible blank sections as placeholders. If blocks are detached from a section, make them top-level blocks.
 

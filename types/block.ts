@@ -3,11 +3,12 @@ export type BlockType =
   | "project"
   | "image"
   | "text"
+  | "section"
   | "social"
   | "video"
   | "status";
 
-export type BlockSize = "small-square" | "wide" | "large-square" | "full-wide" | "tall";
+export type BlockSize = "small-square" | "wide" | "large-square" | "full-wide" | "tall" | "section-text";
 export type LayoutDevice = "desktop" | "mobile";
 
 export type BlockPlacement = {

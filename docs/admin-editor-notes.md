@@ -1,6 +1,6 @@
 # Admin Editor Notes
 
-Last updated: 2026-07-05
+Last updated: 2026-07-06
 
 This document records the current admin editor behavior and the main implementation decisions, so future edits can continue from the same mental model.
 
@@ -9,7 +9,7 @@ This document records the current admin editor behavior and the main implementat
 - The admin visual editor supports desktop and mobile layout modes.
 - On a desktop host, both desktop and mobile layouts can be edited.
 - On a mobile host, the editor is forced to mobile mode and desktop editing is disabled.
-- Desktop editor layout mirrors the public page: profile on the left, sections and blocks on the right.
+- Desktop editor layout mirrors the public page: profile on the left, ordered text blocks and card grids on the right.
 - Main file: `components/admin/AdminVisualEditor.tsx`.
 
 ## Grid sizing
@@ -28,7 +28,8 @@ This document records the current admin editor behavior and the main implementat
   - Desktop wide/large-square: 8 columns.
   - Desktop full-wide: 12 columns.
   - Mobile small/tall: 6 columns.
-  - Mobile wide/large-square/full-wide: 12 columns.
+- Mobile wide/large-square/full-wide: 12 columns.
+- Text blocks use `type: "section"` and `size: "section-text"`. They always occupy the full content width: 3 logical columns on desktop and 2 logical columns on mobile.
 
 ## Resize behavior
 
@@ -44,20 +45,18 @@ This document records the current admin editor behavior and the main implementat
 
 ## Section and block editing
 
-- Sections behave as text-shaped blocks, not containers that own block cards.
-- Block cards can be top-level items by using the internal `__top_level__` section id; these blocks do not belong to any section.
-- Saved, imported, and default configs are normalized so every block card uses `sectionId: "__top_level__"`. Older configs that had cards under a section are migrated into the shared content flow immediately after that text-shaped section.
-- The top-level block grid and text sections share one vertical content-order axis, so a text section can be moved above or below the top-level block grid.
+- Sections are no longer first-class editable containers. The section-like heading is a block with `type: "section"` and `size: "section-text"`.
+- Every block uses the internal `__top_level__` section id; blocks do not belong to any text block.
+- Saved, imported, and default configs are normalized so older `sections` become full-width text blocks and older section-owned cards are migrated into the shared content flow immediately after that text block.
+- The card grid and text blocks share one vertical content-order axis, so a text block can be moved above, below, or between card groups.
 - Top-level block cards keep their own `sortOrder` on the shared content axis; they are not represented by a visible or editable blank section.
-- Dragging a block near a section title inserts it before or after that text-shaped section on the shared content axis. This lets a square block move above a text section instead of being forced into the section's block grid.
-- Moving a section only moves that section text. Any block cards that were still attached to that section are remapped to top-level blocks instead of moving with the section or attaching to the section that moved up.
-- Deleting a section does not delete the block cards under it. Those blocks are remapped to top-level blocks.
-- Empty sections render as text-only rows; the editor does not create visible blank section placeholders.
-- Section title hover in the visual editor does not add a blue background.
-- Dragging over a section does not tint the whole section blue; only the normal `放到这里` placeholder is used when a block placement preview is needed.
-- Section delete is placed in the modal footer on the left, matching the block delete placement.
-- Block dragging within the same section updates only the dragged block's grid placement. It must not renumber sibling blocks or move top-level siblings across section headings.
-- Block dragging across sections uses a drag overlay plus a temporary target placeholder.
+- Dragging a card near a text block inserts it before or after that text block on the shared content axis. This lets a square block move above a text block instead of being forced below it.
+- Moving a text block only moves that text block. It never carries nearby cards with it.
+- Deleting a text block deletes only that text block.
+- The editor does not create visible blank section placeholders.
+- Text block hover uses a neutral gray background, not a blue drop-container tint.
+- Block dragging within a card grid updates only the dragged block's grid placement. It must not renumber unrelated siblings or move top-level siblings across text blocks.
+- Dragging between text blocks/card groups uses a drag overlay plus a temporary target placeholder.
 - The overlay follows the pointer while the real block remains as a faint placeholder at the original location.
 - Cross-section placement is previewed with a same-sized dashed placeholder, which pushes target-section blocks away before drop.
 - Dragging a block records its logical grid column and row in the active device mode, clamped to the valid range for that block size. This supports intentional empty spaces and diagonal placements, such as one small block at top-left and another at bottom-right.
@@ -70,8 +69,8 @@ This document records the current admin editor behavior and the main implementat
 - Touch dragging uses a 500ms long press before activation, while mouse dragging still starts after a small movement threshold.
 - Square drag overlays are normalized to a square rect for `small-square` and `large-square`, preventing temporary rectangular stretching during drag.
 - Drag overlays use a dedicated static preview component rather than the full interactive `BlockCard`, so hover states and layout transitions cannot distort the preview while dragging.
-- Mobile editor controls show section and block edit/delete buttons directly because hover is not available on touch screens.
-- Dragging a text section shows a neutral gray drag background. Section hover still does not imply that block cards belong inside the section.
+- Mobile editor controls show text-block and card edit/delete buttons directly because hover is not available on touch screens.
+- Dragging a text block shows a neutral gray drag background. Text-block hover still does not imply that block cards belong inside the text block.
 - Drop placeholders set their final grid span immediately and do not animate width or height, which prevents temporary stretching while the target section reflows.
 - Admin content spacing uses one visual rhythm: section shell padding plus the outer content gap matches the heading-to-grid gap, so dragging a text section does not change the apparent distance to nearby block grids.
 - Relevant state and helpers:
@@ -111,7 +110,7 @@ This document records the current admin editor behavior and the main implementat
 ## Block editing modal
 
 - Block editing uses a simplified light modal.
-- The modal focuses on cover image, title, subtitle, description, link, section, type, action, badge, icon, and visibility settings.
+- The modal focuses on cover image, title, subtitle, description, link, type, action, badge, icon, and visibility settings. Text blocks hide card-only fields and expose title alignment/size instead.
 - Block size is not edited in the modal; size changes happen directly on the visual canvas.
 - Delete is placed in the modal footer on the left, aligned with Cancel and Save.
 - Dropdown labels are bilingual Chinese/English.

@@ -54,51 +54,39 @@ export const defaultSiteConfig: SiteConfig = {
       latestPosts: false
     }
   },
-  sections: [
+  sections: [],
+  blocks: [
     {
-      id: "doing",
+      id: "text-doing",
+      sectionId: topLevelBlockSectionId,
       title: "Featured work",
-      emoji: "build",
-      description: "Projects, products, and experiments you want people to notice first.",
-      titleAlign: "left",
-      titleSize: "md",
-      layout: "grid",
-      gap: "md",
+      subtitle: "Projects, products, and experiments you want people to notice first.",
+      description: "",
+      type: "section",
+      size: "section-text",
+      responsiveSizes: {
+        desktop: "section-text",
+        mobile: "section-text"
+      },
+      coverImage: "",
+      icon: "build",
+      badge: "",
+      href: "",
+      actionType: "none",
+      openInNewTab: false,
+      backgroundColor: "",
+      textColor: "",
+      metadata: {
+        sourceSectionId: "doing",
+        titleAlign: "left",
+        titleSize: "md"
+      },
       sortOrder: 1,
       isVisible: true,
+      isFeatured: false,
       createdAt: now,
       updatedAt: now
     },
-    {
-      id: "daily",
-      title: "Notes",
-      emoji: "sparkle",
-      description: "Short updates, writing, and personal highlights.",
-      titleAlign: "left",
-      titleSize: "md",
-      layout: "grid",
-      gap: "md",
-      sortOrder: 4,
-      isVisible: true,
-      createdAt: now,
-      updatedAt: now
-    },
-    {
-      id: "social",
-      title: "Social",
-      emoji: "link",
-      description: "",
-      titleAlign: "left",
-      titleSize: "md",
-      layout: "grid",
-      gap: "md",
-      sortOrder: 6,
-      isVisible: true,
-      createdAt: now,
-      updatedAt: now
-    }
-  ],
-  blocks: [
     {
       id: "flagship-project",
       sectionId: topLevelBlockSectionId,
@@ -146,6 +134,37 @@ export const defaultSiteConfig: SiteConfig = {
       updatedAt: now
     },
     {
+      id: "text-daily",
+      sectionId: topLevelBlockSectionId,
+      title: "Notes",
+      subtitle: "Short updates, writing, and personal highlights.",
+      description: "",
+      type: "section",
+      size: "section-text",
+      responsiveSizes: {
+        desktop: "section-text",
+        mobile: "section-text"
+      },
+      coverImage: "",
+      icon: "sparkle",
+      badge: "",
+      href: "",
+      actionType: "none",
+      openInNewTab: false,
+      backgroundColor: "",
+      textColor: "",
+      metadata: {
+        sourceSectionId: "daily",
+        titleAlign: "left",
+        titleSize: "md"
+      },
+      isVisible: true,
+      isFeatured: false,
+      sortOrder: 4,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
       id: "daily-note",
       sectionId: topLevelBlockSectionId,
       title: "Latest note",
@@ -165,6 +184,37 @@ export const defaultSiteConfig: SiteConfig = {
       isVisible: true,
       isFeatured: false,
       sortOrder: 5,
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "text-social",
+      sectionId: topLevelBlockSectionId,
+      title: "Social",
+      subtitle: "",
+      description: "",
+      type: "section",
+      size: "section-text",
+      responsiveSizes: {
+        desktop: "section-text",
+        mobile: "section-text"
+      },
+      coverImage: "",
+      icon: "link",
+      badge: "",
+      href: "",
+      actionType: "none",
+      openInNewTab: false,
+      backgroundColor: "",
+      textColor: "",
+      metadata: {
+        sourceSectionId: "social",
+        titleAlign: "left",
+        titleSize: "md"
+      },
+      isVisible: true,
+      isFeatured: false,
+      sortOrder: 6,
       createdAt: now,
       updatedAt: now
     },

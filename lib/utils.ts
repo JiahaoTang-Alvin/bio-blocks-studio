@@ -20,26 +20,42 @@ export function bySortOrder<T extends { sortOrder: number }>(a: T, b: T) {
 
 export type ContentOrderItem =
   | { id: string; type: "top-level-blocks"; blocks: Block[]; sortOrder: number }
-  | { id: string; type: "section"; section: Section; sortOrder: number };
+  | { id: string; type: "text-block"; block: Block; sortOrder: number };
 
-type ContentFlowNode =
-  | { type: "section"; section: Section; sortOrder: number; tieOrder: number; itemOrder: number }
-  | { type: "block"; block: Block; sortOrder: number; tieOrder: number; itemOrder: number };
+type ContentFlowNode = {
+  type: "block";
+  block: Block;
+  sortOrder: number;
+  tieOrder: number;
+  itemOrder: number;
+};
 
 export function getNextContentSortOrder(config: SiteConfig) {
   return Math.max(0, ...config.sections.map((section) => section.sortOrder), ...config.blocks.map((block) => block.sortOrder)) + 1;
 }
 
+export function isSectionTextBlock(block: Block) {
+  return block.type === "section";
+}
+
 export function normalizeContentFlowConfig(config: SiteConfig): SiteConfig {
   const sectionById = new Map(config.sections.map((section) => [section.id, section]));
+  const existingBlockIds = new Set(config.blocks.map((block) => block.id));
+  const existingSectionSourceIds = new Set(
+    config.blocks
+      .filter(isSectionTextBlock)
+      .map((block) => (typeof block.metadata?.sourceSectionId === "string" ? block.metadata.sourceSectionId : block.id))
+  );
   const contentNodes: ContentFlowNode[] = [
-    ...config.sections.map((section, index) => ({
-      type: "section" as const,
-      section,
-      sortOrder: section.sortOrder,
-      tieOrder: 1,
-      itemOrder: index
-    })),
+    ...config.sections
+      .filter((section) => !existingSectionSourceIds.has(section.id))
+      .map((section, index) => ({
+        type: "block" as const,
+        block: sectionToTextBlock(section, getSectionTextBlockId(section.id, existingBlockIds)),
+        sortOrder: section.sortOrder,
+        tieOrder: 1,
+        itemOrder: index
+      })),
     ...config.blocks.map((block, index) => {
       const parentSection = sectionById.get(block.sectionId);
       const isLegacySectionBlock = block.sectionId !== topLevelBlockSectionId && parentSection;
@@ -58,27 +74,10 @@ export function normalizeContentFlowConfig(config: SiteConfig): SiteConfig {
     return a.itemOrder - b.itemOrder;
   });
 
-  const sectionSortOrderById = new Map<string, number>();
-  const blockSortOrderById = new Map<string, number>();
-  contentNodes.forEach((item, index) => {
-    if (item.type === "section") {
-      sectionSortOrderById.set(item.section.id, index + 1);
-    } else {
-      blockSortOrderById.set(item.block.id, index + 1);
-    }
-  });
-
   return {
     ...config,
-    sections: config.sections.map((section) => ({
-      ...section,
-      sortOrder: sectionSortOrderById.get(section.id) ?? section.sortOrder
-    })),
-    blocks: config.blocks.map((block) => ({
-      ...block,
-      sectionId: topLevelBlockSectionId,
-      sortOrder: blockSortOrderById.get(block.id) ?? block.sortOrder
-    })),
+    sections: [],
+    blocks: contentNodes.map((item, index) => normalizeContentBlock(item.block, index + 1)),
     settings: {
       ...config.settings,
       topLevelBlocksSortOrder: undefined
@@ -93,21 +92,7 @@ export function buildRenderModel(config: SiteConfig): {
   orderedContentItems: ContentOrderItem[];
 } {
   const normalizedConfig = normalizeContentFlowConfig(config);
-  const orderedSections = [...normalizedConfig.sections].filter((section) => section.isVisible).sort(bySortOrder);
-  const topLevelBlocks: Block[] = [];
-
-  for (const block of normalizedConfig.blocks) {
-    if (!block.isVisible) {
-      continue;
-    }
-
-    topLevelBlocks.push(block);
-  }
-
-  const contentSourceItems = [
-    ...topLevelBlocks.map((block) => ({ id: block.id, type: "top-level-block" as const, block, sortOrder: block.sortOrder })),
-    ...orderedSections.map((section) => ({ id: section.id, type: "section" as const, section, sortOrder: section.sortOrder }))
-  ].sort((a, b) => (a.sortOrder === b.sortOrder ? (a.type === "top-level-block" ? -1 : 1) : a.sortOrder - b.sortOrder));
+  const orderedVisibleBlocks = [...normalizedConfig.blocks].filter((block) => block.isVisible).sort(bySortOrder);
   const orderedContentItems: ContentOrderItem[] = [];
   let pendingTopLevelBlocks: Block[] = [];
 
@@ -122,21 +107,80 @@ export function buildRenderModel(config: SiteConfig): {
     pendingTopLevelBlocks = [];
   }
 
-  for (const item of contentSourceItems) {
-    if (item.type === "top-level-block") {
-      pendingTopLevelBlocks.push(item.block);
+  for (const block of orderedVisibleBlocks) {
+    if (!isSectionTextBlock(block)) {
+      pendingTopLevelBlocks.push(block);
       continue;
     }
 
     flushTopLevelBlocks();
-    orderedContentItems.push({ id: item.section.id, type: "section", section: item.section, sortOrder: item.section.sortOrder });
+    orderedContentItems.push({ id: block.id, type: "text-block", block, sortOrder: block.sortOrder });
   }
   flushTopLevelBlocks();
 
   return {
-    profile: config.profile,
-    orderedSections,
-    topLevelBlocks: [...topLevelBlocks].sort(bySortOrder),
+    profile: normalizedConfig.profile,
+    orderedSections: [],
+    topLevelBlocks: orderedVisibleBlocks,
     orderedContentItems
+  };
+}
+
+function getSectionTextBlockId(sectionId: string, existingBlockIds: Set<string>) {
+  const baseId = `text-${sectionId}`;
+  if (!existingBlockIds.has(baseId)) return baseId;
+  return `text-block-${sectionId}`;
+}
+
+function sectionToTextBlock(section: Section, id: string): Block {
+  return {
+    id,
+    sectionId: topLevelBlockSectionId,
+    title: section.title || "Untitled",
+    subtitle: section.description ?? "",
+    description: "",
+    type: "section",
+    size: "section-text",
+    responsiveSizes: {
+      desktop: "section-text",
+      mobile: "section-text"
+    },
+    coverImage: "",
+    icon: section.emoji ?? "",
+    badge: "",
+    href: "",
+    actionType: "none",
+    openInNewTab: false,
+    backgroundColor: "",
+    textColor: "",
+    metadata: {
+      sourceSectionId: section.id,
+      titleAlign: section.titleAlign,
+      titleSize: section.titleSize
+    },
+    isVisible: section.isVisible,
+    isFeatured: false,
+    sortOrder: section.sortOrder,
+    createdAt: section.createdAt,
+    updatedAt: section.updatedAt
+  };
+}
+
+function normalizeContentBlock(block: Block, sortOrder: number): Block {
+  const isTextSection = isSectionTextBlock(block);
+  return {
+    ...block,
+    sectionId: topLevelBlockSectionId,
+    sortOrder,
+    size: isTextSection ? "section-text" : block.size,
+    responsiveSizes: isTextSection
+      ? {
+          desktop: "section-text",
+          mobile: "section-text"
+        }
+      : block.responsiveSizes,
+    actionType: isTextSection ? "none" : block.actionType,
+    openInNewTab: isTextSection ? false : block.openInNewTab,
+    isFeatured: isTextSection ? false : block.isFeatured
   };
 }

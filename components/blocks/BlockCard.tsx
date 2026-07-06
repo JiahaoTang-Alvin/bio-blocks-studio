@@ -4,7 +4,7 @@ import { Download, ExternalLink, ImageIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Block } from "@/types/block";
-import { cn } from "@/lib/utils";
+import { cn, isSectionTextBlock } from "@/lib/utils";
 import { getPublicBlockPlacementStyle, getPublicBlockSizeClass } from "@/constants/block-layout";
 import { ImageBlock } from "@/components/blocks/ImageBlock";
 import { LinkBlock } from "@/components/blocks/LinkBlock";
@@ -33,6 +33,10 @@ export function BlockCard({
 }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+
+  if (isSectionTextBlock(block)) {
+    return <SectionTextCard block={block} withLayout={withLayout} compact={compact} layoutStyle={layoutStyle} className={className} />;
+  }
 
   function runAction() {
     if (disableActions) return;
@@ -165,6 +169,56 @@ function renderBlock(block: Block, hideTitle = false) {
   if (block.type === "video") return <VideoBlock block={displayBlock} />;
   if (block.type === "status") return <StatusBlock block={displayBlock} />;
   return <LinkBlock block={displayBlock} />;
+}
+
+const sectionTitleSize = {
+  sm: "text-lg",
+  md: "text-2xl",
+  lg: "text-3xl"
+};
+
+const sectionTextAlign = {
+  left: "text-left",
+  center: "text-center",
+  right: "text-right"
+};
+
+function SectionTextCard({
+  block,
+  compact,
+  withLayout,
+  layoutStyle,
+  className
+}: {
+  block: Block;
+  compact: boolean;
+  withLayout: boolean;
+  layoutStyle?: React.CSSProperties & Record<string, string | number | undefined>;
+  className?: string;
+}) {
+  const rawTitleSize = block.metadata?.titleSize;
+  const rawTitleAlign = block.metadata?.titleAlign;
+  const titleSize = rawTitleSize === "sm" || rawTitleSize === "lg" ? rawTitleSize : "md";
+  const titleAlign = rawTitleAlign === "center" || rawTitleAlign === "right" ? rawTitleAlign : "left";
+  const subtitle = block.subtitle || block.description;
+
+  return (
+    <article
+      style={withLayout && !compact ? layoutStyle ?? getPublicBlockPlacementStyle(block) : undefined}
+      className={cn(
+        "relative min-w-0 px-1 py-1",
+        sectionTextAlign[titleAlign],
+        withLayout && !compact && getPublicBlockSizeClass(block),
+        className
+      )}
+    >
+      <h2 className={cn("font-bold leading-tight tracking-normal", sectionTitleSize[titleSize])}>
+        {block.title.trim()}
+        {block.icon ? <span className="ml-1 text-[#1479FF]">{block.icon}</span> : null}
+      </h2>
+      {subtitle ? <p className="mt-1 text-sm leading-6 text-[#64748B]">{subtitle}</p> : null}
+    </article>
+  );
 }
 
 function Dialog({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {

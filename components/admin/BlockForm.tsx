@@ -11,6 +11,7 @@ const blockTypeLabels: Record<BlockType, string> = {
   project: "项目/project",
   image: "图片/image",
   text: "文字/text",
+  section: "文本 Block/section",
   social: "社交/social",
   video: "视频/video",
   status: "状态/status"
@@ -32,6 +33,7 @@ export function BlockForm({
   onPatch: (patch: Partial<Block>) => void;
 }) {
   const copyText = typeof block.metadata?.copyText === "string" ? block.metadata.copyText : "";
+  const isSectionBlock = block.type === "section";
 
   function patchHref(value: string) {
     onPatch({ href: value, icon: inferIconFromUrl(value, block.icon) });
@@ -39,14 +41,16 @@ export function BlockForm({
 
   return (
     <div className="grid gap-5 text-[#333]">
-      <ImageCropUploader
-        folder="blocks"
-        value={block.coverImage}
-        label="🖼️ 封面/cover"
-        buttonText="更换图片"
-        onUploaded={(url) => onPatch({ coverImage: url })}
-        onClear={() => onPatch({ coverImage: "" })}
-      />
+      {!isSectionBlock ? (
+        <ImageCropUploader
+          folder="blocks"
+          value={block.coverImage}
+          label="🖼️ 封面/cover"
+          buttonText="更换图片"
+          onUploaded={(url) => onPatch({ coverImage: url })}
+          onClear={() => onPatch({ coverImage: "" })}
+        />
+      ) : null}
 
       <div className="grid gap-3">
         <Field label="标题/title">
@@ -61,20 +65,20 @@ export function BlockForm({
             onChange={(event) => onPatch({ subtitle: event.target.value })}
           />
         </Field>
-        <Field label="描述/description">
+        {!isSectionBlock ? <Field label="描述/description">
           <Textarea
             value={block.description ?? ""}
             onChange={(event) => onPatch({ description: event.target.value })}
             className="min-h-28"
           />
-        </Field>
-        <Field label="链接/link">
+        </Field> : null}
+        {!isSectionBlock ? <Field label="链接/link">
           <Input
             value={block.href ?? ""}
             onChange={(event) => patchHref(event.target.value)}
             placeholder="填入链接"
           />
-        </Field>
+        </Field> : null}
 
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="类型/type">
@@ -88,6 +92,30 @@ export function BlockForm({
           </Field>
         </div>
 
+        {isSectionBlock ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="标题对齐/title align">
+              <Select
+                value={getSectionMetadataValue(block.metadata?.titleAlign, ["left", "center", "right"], "left")}
+                onChange={(event) => onPatch({ metadata: { ...(block.metadata ?? {}), titleAlign: event.target.value } })}
+              >
+                <option value="left">left</option>
+                <option value="center">center</option>
+                <option value="right">right</option>
+              </Select>
+            </Field>
+            <Field label="标题大小/title size">
+              <Select
+                value={getSectionMetadataValue(block.metadata?.titleSize, ["sm", "md", "lg"], "md")}
+                onChange={(event) => onPatch({ metadata: { ...(block.metadata ?? {}), titleSize: event.target.value } })}
+              >
+                <option value="sm">sm</option>
+                <option value="md">md</option>
+                <option value="lg">lg</option>
+              </Select>
+            </Field>
+          </div>
+        ) : (
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="动作/action">
             <Select
@@ -116,6 +144,7 @@ export function BlockForm({
             </Field>
           ) : null}
         </div>
+        )}
 
         <div className="grid gap-1.5 text-sm font-medium text-[#333]">
           <span>图标/icon</span>
@@ -161,6 +190,10 @@ export function BlockForm({
       </div>
     </div>
   );
+}
+
+function getSectionMetadataValue<T extends string>(value: unknown, values: readonly T[], fallback: T): T {
+  return values.includes(value as T) ? (value as T) : fallback;
 }
 
 function inferIconFromUrl(value: string, currentIcon?: string) {

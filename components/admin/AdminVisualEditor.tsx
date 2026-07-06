@@ -64,6 +64,7 @@ import {
   bySortOrder,
   buildRenderModel,
   getNextContentSortOrder,
+  isSectionTextBlock,
   normalizeContentFlowConfig,
   normalizeSortOrder,
   cn,
@@ -92,7 +93,6 @@ import { ImageCropUploader } from "@/components/admin/ImageCropUploader";
 type ModalState =
   | { type: "tags" }
   | { type: "social" }
-  | { type: "section"; sectionId: string }
   | { type: "block"; blockId: string }
   | { type: "add-block" }
   | { type: "project-settings" }
@@ -105,6 +105,7 @@ const blockTemplates: {
   {
     group: "作品",
     items: [
+      { label: "文本区块", description: "整行标题/说明", type: "section", size: "section-text", icon: <AlignLeft /> },
       { label: "导入", description: "外部链接", type: "link", size: "small-square", icon: <LinkIcon /> },
       { label: "标题", description: "标题卡片", type: "text", size: "wide", icon: <Type /> },
       { label: "文字", description: "文章摘要", type: "text", size: "wide", icon: <FileText /> },
@@ -206,6 +207,7 @@ type GridPlacement = {
 
 type ContentFlowItem =
   | { type: "section"; id: string; section: Section }
+  | { type: "text-block"; id: string; block: Block }
   | { type: "top-level-block"; id: string; block: Block };
 
 type SectionDragPreview = {
@@ -215,9 +217,9 @@ type SectionDragPreview = {
 
 type EditorContentItem =
   | { id: string; type: "top-level-blocks"; blocks: Block[]; sortOrder: number }
-  | { id: string; type: "top-level-block-preview"; sortOrder: number }
-  | { id: string; type: "section"; section: Section; sortOrder: number }
-  | { id: string; type: "section-preview"; section: Section };
+  | { id: string; type: "top-level-block-preview"; block: Block; sortOrder: number }
+  | { id: string; type: "text-block"; block: Block; sortOrder: number }
+  | { id: string; type: "text-block-preview"; block: Block };
 
 export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig }) {
   const [config, setConfig] = useState(() => normalizeContentFlowConfig(initialConfig));
@@ -449,7 +451,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
         ...current,
         blocks: normalizeBlocks(
           current.blocks.map((block) =>
-            block.id === blockId
+            block.id === blockId && !isSectionTextBlock(block)
               ? {
                   ...block,
                   sectionId: topLevelBlockSectionId,
@@ -520,27 +522,14 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       block: activeBlock
     });
 
-    const sectionSortOrderById = new Map<string, number>();
-    const topLevelBlockSortOrderById = new Map<string, number>();
+    const blockSortOrderById = new Map<string, number>();
     nextItems.forEach((item, index) => {
-      const sortOrder = index + 1;
-      if (item.type === "section") {
-        sectionSortOrderById.set(item.id, sortOrder);
-      } else {
-        topLevelBlockSortOrderById.set(item.id, sortOrder);
-      }
+      blockSortOrderById.set(item.id, index + 1);
     });
 
     return {
       ...config,
-      sections: config.sections.map((section) =>
-        sectionSortOrderById.has(section.id)
-          ? {
-              ...section,
-              sortOrder: sectionSortOrderById.get(section.id) ?? section.sortOrder
-            }
-          : section
-      ),
+      sections: [],
       blocks: normalizeBlocks(
         config.blocks.map((block) => {
           if (block.id === blockId) {
@@ -548,7 +537,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
               {
                 ...block,
                 sectionId: topLevelBlockSectionId,
-                sortOrder: topLevelBlockSortOrderById.get(block.id) ?? block.sortOrder,
+                sortOrder: blockSortOrderById.get(block.id) ?? block.sortOrder,
                 updatedAt: now
               },
               editorDevice,
@@ -556,10 +545,11 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
             );
           }
 
-          if (block.sectionId === topLevelBlockSectionId && topLevelBlockSortOrderById.has(block.id)) {
+          if (blockSortOrderById.has(block.id)) {
             return {
               ...block,
-              sortOrder: topLevelBlockSortOrderById.get(block.id) ?? block.sortOrder
+              sectionId: topLevelBlockSectionId,
+              sortOrder: blockSortOrderById.get(block.id) ?? block.sortOrder
             };
           }
 
@@ -581,14 +571,21 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
 
   function addBlock(template: (typeof blockTemplates)[number]["items"][number]) {
     const now = new Date().toISOString();
+    const isTextSection = template.type === "section";
     const newBlock: Block = {
       id: crypto.randomUUID(),
       sectionId: topLevelBlockSectionId,
-      title: template.label === "导入" ? "New Link" : template.label,
+      title: isTextSection ? "New Section" : template.label === "导入" ? "New Link" : template.label,
       subtitle: template.description,
       description: "",
       type: template.type,
-      size: template.size,
+      size: isTextSection ? "section-text" : template.size,
+      responsiveSizes: isTextSection
+        ? {
+            desktop: "section-text",
+            mobile: "section-text"
+          }
+        : undefined,
       coverImage: "",
       icon: template.type === "social" ? template.label.toLowerCase() : "",
       badge: "",
@@ -597,7 +594,12 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       openInNewTab: true,
       backgroundColor: "",
       textColor: "",
-      metadata: {},
+      metadata: isTextSection
+        ? {
+            titleAlign: "left",
+            titleSize: "md"
+          }
+        : {},
       isVisible: true,
       isFeatured: false,
       sortOrder: getNextContentSortOrder(config),
@@ -624,22 +626,38 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
 
   function addSection() {
     const now = new Date().toISOString();
-    const section: Section = {
+    const block: Block = {
       id: crypto.randomUUID(),
+      sectionId: topLevelBlockSectionId,
       title: "New Section",
-      emoji: "",
+      subtitle: "",
       description: "",
-      titleAlign: "left",
-      titleSize: "md",
-      layout: "grid",
-      gap: "md",
+      type: "section",
+      size: "section-text",
+      responsiveSizes: {
+        desktop: "section-text",
+        mobile: "section-text"
+      },
+      coverImage: "",
+      icon: "",
+      badge: "",
+      href: "",
+      actionType: "none",
+      openInNewTab: false,
+      backgroundColor: "",
+      textColor: "",
+      metadata: {
+        titleAlign: "left",
+        titleSize: "md"
+      },
       sortOrder: getNextContentSortOrder(config),
       isVisible: true,
+      isFeatured: false,
       createdAt: now,
       updatedAt: now
     };
-    update({ ...config, sections: [...config.sections, section] });
-    setModal({ type: "section", sectionId: section.id });
+    update({ ...config, blocks: [...config.blocks, block] });
+    setModal({ type: "block", blockId: block.id });
   }
 
   function onDragStart(event: DragStartEvent) {
@@ -823,10 +841,13 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     }
 
     if (targetSectionId !== activeBlock.sectionId) return;
+    if (isSectionTextBlock(activeBlock) || (overBlock && isSectionTextBlock(overBlock))) return;
 
     updateDragPreviewPlacement(null);
 
-    const targetBlocks = config.blocks.filter((block) => block.sectionId === targetSectionId).sort(bySortOrder);
+    const targetBlocks = config.blocks
+      .filter((block) => block.sectionId === targetSectionId && !isSectionTextBlock(block))
+      .sort(bySortOrder);
     if (!overBlock) return;
 
     const targetIndex = targetBlocks.findIndex((block) => block.id === overBlock.id);
@@ -913,6 +934,8 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       return;
     }
 
+    if (isSectionTextBlock(activeBlock)) return;
+
     if (!over || active.id === over.id) {
       const placement = getPlacementFromDrag({
         sectionId: activeBlock.sectionId,
@@ -939,8 +962,11 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     const targetSectionId = overBlock?.sectionId ?? overId.replace("section:", "");
     if (targetSectionId !== activeBlock.sectionId) return;
     if (!overBlock && targetSectionId === activeBlock.sectionId) return;
+    if (overBlock && isSectionTextBlock(overBlock)) return;
 
-    const targetBlocks = config.blocks.filter((block) => block.sectionId === targetSectionId).sort(bySortOrder);
+    const targetBlocks = config.blocks
+      .filter((block) => block.sectionId === targetSectionId && !isSectionTextBlock(block))
+      .sort(bySortOrder);
     const targetIndex =
       previewPlacement?.blockId === activeId && previewPlacement.targetSectionId === targetSectionId
         ? previewPlacement.targetIndex
@@ -1133,54 +1159,15 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
                 />
                 <section className="grid min-w-0 gap-2">
                   <SortableContext
-                    items={editorContentItems
-                      .filter((item) => item.type === "section")
-                      .map((item) => `section-order:${item.id}`)}
-                    strategy={verticalListSortingStrategy}
+                    items={config.blocks.map((block) => block.id)}
+                    strategy={rectSortingStrategy}
                   >
                     {editorContentItems.map((item) =>
                       item.type === "top-level-blocks" ? (
-                        <Fragment key={item.id}>
-                          <EditableSection
-                            section={topLevelSection}
-                            blocks={item.blocks}
-                            onEditSection={() => undefined}
-                            onDeleteSection={() => undefined}
-                            onEditBlock={(blockId) => setModal({ type: "block", blockId })}
-                            onDeleteBlock={deleteBlock}
-                            onSelectBlock={setSelectedBlockId}
-                            device={editorDevice}
-                            activeDragBlockId={activeDragBlockId}
-                            dragPreviewBlock={activeDragBlock}
-                            dragPreviewPlacement={dragPreviewPlacement}
-                            onResizeBlock={patchBlockSizeForDevice}
-                            onResizePreview={setResizePreviewSize}
-                            resizeDrafts={resizeDrafts}
-                            onResizeDraft={(blockId, size) =>
-                              setResizeDrafts((current) => {
-                                if (!size) {
-                                  const next = { ...current };
-                                  delete next[blockId];
-                                  return next;
-                                }
-                                return { ...current, [blockId]: size };
-                              })
-                            }
-                            sectionHandleProps={{}}
-                            hideHeader
-                            showDragPreview={
-                              dragPreviewPlacement?.targetSectionId === topLevelBlockSectionId &&
-                              dragPreviewPlacement.targetContentIndex === undefined &&
-                              (editorContentItems.filter((contentItem) => contentItem.type === "top-level-blocks").length === 1 ||
-                                item.blocks.some((block) => block.id === activeDragBlockId))
-                            }
-                          />
-                        </Fragment>
-                      ) : item.type === "top-level-block-preview" ? (
                         <EditableSection
                           key={item.id}
                           section={topLevelSection}
-                          blocks={[]}
+                          blocks={item.blocks}
                           onEditSection={() => undefined}
                           onDeleteSection={() => undefined}
                           onEditBlock={(blockId) => setModal({ type: "block", blockId })}
@@ -1205,44 +1192,59 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
                           }
                           sectionHandleProps={{}}
                           hideHeader
+                          showDragPreview={
+                            activeDragBlock !== null &&
+                            !isSectionTextBlock(activeDragBlock) &&
+                            dragPreviewPlacement?.targetSectionId === topLevelBlockSectionId &&
+                            dragPreviewPlacement.targetContentIndex === undefined &&
+                            (editorContentItems.filter((contentItem) => contentItem.type === "top-level-blocks").length === 1 ||
+                              item.blocks.some((block) => block.id === activeDragBlockId))
+                          }
+                        />
+                      ) : item.type === "top-level-block-preview" ? (
+                        <EditableSection
+                          key={item.id}
+                          section={topLevelSection}
+                          blocks={[]}
+                          onEditSection={() => undefined}
+                          onDeleteSection={() => undefined}
+                          onEditBlock={(blockId) => setModal({ type: "block", blockId })}
+                          onDeleteBlock={deleteBlock}
+                          onSelectBlock={setSelectedBlockId}
+                          device={editorDevice}
+                          activeDragBlockId={activeDragBlockId}
+                          dragPreviewBlock={item.block}
+                          dragPreviewPlacement={dragPreviewPlacement}
+                          onResizeBlock={patchBlockSizeForDevice}
+                          onResizePreview={setResizePreviewSize}
+                          resizeDrafts={resizeDrafts}
+                          onResizeDraft={(blockId, size) =>
+                            setResizeDrafts((current) => {
+                              if (!size) {
+                                const next = { ...current };
+                                delete next[blockId];
+                                return next;
+                              }
+                              return { ...current, [blockId]: size };
+                            })
+                          }
+                          sectionHandleProps={{}}
+                          hideHeader
                           showDragPreview
                         />
-                      ) : item.type === "section-preview" ? (
-                        <SectionDropPreview key={item.id} section={item.section} />
+                      ) : item.type === "text-block-preview" ? (
+                        <TextBlockDropPreview key={item.id} block={item.block} />
                       ) : (
-                        <SortableSection key={item.id} section={item.section}>
-                          {({ sectionHandleProps, sectionContainerProps }) => (
-                            <EditableSection
-                              section={item.section}
-                              blocks={[]}
-                              onEditSection={() => setModal({ type: "section", sectionId: item.id })}
-                              onDeleteSection={() => deleteSection(item.id)}
-                              onEditBlock={(blockId) => setModal({ type: "block", blockId })}
-                              onDeleteBlock={deleteBlock}
-                              onSelectBlock={setSelectedBlockId}
-                              device={editorDevice}
-                              activeDragBlockId={activeDragBlockId}
-                              dragPreviewBlock={activeDragBlock}
-                              dragPreviewPlacement={dragPreviewPlacement}
-                              onResizeBlock={patchBlockSizeForDevice}
-                              onResizePreview={setResizePreviewSize}
-                              resizeDrafts={resizeDrafts}
-                              onResizeDraft={(blockId, size) =>
-                                setResizeDrafts((current) => {
-                                  if (!size) {
-                                    const next = { ...current };
-                                    delete next[blockId];
-                                    return next;
-                                  }
-                                  return { ...current, [blockId]: size };
-                                })
-                              }
-                              sectionHandleProps={sectionHandleProps}
-                              sectionContainerProps={sectionContainerProps}
-                              showDragPreview={dragPreviewPlacement?.targetSectionId === item.id}
-                            />
-                          )}
-                        </SortableSection>
+                        <SortableTextBlock
+                          key={item.id}
+                          block={item.block}
+                          device={editorDevice}
+                          isDragOverlayActive={activeDragBlockId === item.block.id}
+                          disableSortableTransform={activeDragBlockId !== null}
+                          onEdit={() => setModal({ type: "block", blockId: item.block.id })}
+                          onDelete={() => deleteBlock(item.block.id)}
+                          onSelect={() => setSelectedBlockId(item.block.id)}
+                        />
                       )
                     )}
                   </SortableContext>
@@ -1303,18 +1305,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
           onSave={save}
           isSaving={isSaving}
           footerStart={
-            modal.type === "section" ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => deleteSection(modal.sectionId)}
-                className="text-red-600 hover:bg-red-50 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4" />
-                删除/delete
-              </Button>
-            ) : modal.type === "block" ? (
+            modal.type === "block" ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -1330,12 +1321,6 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
         >
           {modal.type === "tags" ? <TagsQuickForm profile={config.profile} onPatch={patchProfile} /> : null}
           {modal.type === "social" ? <SocialLinksQuickForm profile={config.profile} onPatch={patchProfile} /> : null}
-          {modal.type === "section" ? (
-            <SectionQuickForm
-              section={config.sections.find((section) => section.id === modal.sectionId)}
-              onPatch={(patch) => patchSection(modal.sectionId, patch)}
-            />
-          ) : null}
           {modal.type === "block" ? (
             <BlockModalBody
               block={config.blocks.find((block) => block.id === modal.blockId)}
@@ -1580,7 +1565,7 @@ function getContentFlowForSectionMove(renderModel: ReturnType<typeof buildRender
       continue;
     }
 
-    flowItems.push({ type: "section", id: item.id, section: item.section });
+    flowItems.push({ type: "text-block", id: item.id, block: item.block });
   }
 
   return flowItems;
@@ -1599,7 +1584,9 @@ function getContentFlowForBlockMove(renderModel: ReturnType<typeof buildRenderMo
       continue;
     }
 
-    flowItems.push({ type: "section", id: item.id, section: item.section });
+    if (item.block.id !== activeBlockId) {
+      flowItems.push({ type: "text-block", id: item.id, block: item.block });
+    }
   }
 
   return flowItems;
@@ -1618,10 +1605,11 @@ function getEditorContentItems(
     activeBlock
   ) {
     const flowItems = getContentFlowForBlockMove(renderModel, activeBlock.id);
-    const nextItems: Array<ContentFlowItem | { type: "top-level-block-preview"; id: string }> = [...flowItems];
+    const nextItems: Array<ContentFlowItem | { type: "top-level-block-preview"; id: string; block: Block } | { type: "text-block-preview"; id: string; block: Block }> = [...flowItems];
     nextItems.splice(Math.max(0, Math.min(blockPreview.targetContentIndex, flowItems.length)), 0, {
-      type: "top-level-block-preview",
-      id: `top-level-block-preview:${activeBlock.id}`
+      type: isSectionTextBlock(activeBlock) ? "text-block-preview" : "top-level-block-preview",
+      id: `${isSectionTextBlock(activeBlock) ? "text-block" : "top-level-block"}-preview:${activeBlock.id}`,
+      block: activeBlock
     });
     return contentFlowItemsToEditorItems(nextItems);
   }
@@ -1643,7 +1631,10 @@ function getEditorContentItems(
 
 function contentFlowItemsToEditorItems(
   nextItems: Array<
-    ContentFlowItem | { type: "section-preview"; id: string; section: Section } | { type: "top-level-block-preview"; id: string }
+    | ContentFlowItem
+    | { type: "section-preview"; id: string; section: Section }
+    | { type: "top-level-block-preview"; id: string; block: Block }
+    | { type: "text-block-preview"; id: string; block: Block }
   >
 ): EditorContentItem[] {
   const contentItems: EditorContentItem[] = [];
@@ -1668,11 +1659,16 @@ function contentFlowItemsToEditorItems(
 
     flushBlocks();
     if (item.type === "section-preview") {
-      contentItems.push(item);
+      contentItems.push({ id: item.id, type: "text-block-preview", block: sectionToPreviewBlock(item.section) });
     } else if (item.type === "top-level-block-preview") {
-      contentItems.push({ id: item.id, type: "top-level-block-preview", sortOrder: 0 });
+      contentItems.push({ id: item.id, type: "top-level-block-preview", block: item.block, sortOrder: 0 });
+    } else if (item.type === "text-block-preview") {
+      contentItems.push(item);
+    } else if (item.type === "section") {
+      const block = sectionToPreviewBlock(item.section);
+      contentItems.push({ id: block.id, type: "text-block", block, sortOrder: block.sortOrder });
     } else {
-      contentItems.push({ id: item.id, type: "section", section: item.section, sortOrder: item.section.sortOrder });
+      contentItems.push({ id: item.id, type: "text-block", block: item.block, sortOrder: item.block.sortOrder });
     }
   }
   flushBlocks();
@@ -1701,6 +1697,40 @@ function getSectionContentTargetIndex(flowItems: ContentFlowItem[], overId: stri
   }
 
   return pointer ? getSectionTargetIndexFromPointer(flowItems, pointer) : null;
+}
+
+function sectionToPreviewBlock(section: Section): Block {
+  return {
+    id: `text-${section.id}`,
+    sectionId: topLevelBlockSectionId,
+    title: section.title,
+    subtitle: section.description ?? "",
+    description: "",
+    type: "section",
+    size: "section-text",
+    responsiveSizes: {
+      desktop: "section-text",
+      mobile: "section-text"
+    },
+    coverImage: "",
+    icon: section.emoji ?? "",
+    badge: "",
+    href: "",
+    actionType: "none",
+    openInNewTab: false,
+    backgroundColor: "",
+    textColor: "",
+    metadata: {
+      sourceSectionId: section.id,
+      titleAlign: section.titleAlign,
+      titleSize: section.titleSize
+    },
+    isVisible: section.isVisible,
+    isFeatured: false,
+    sortOrder: section.sortOrder,
+    createdAt: section.createdAt,
+    updatedAt: section.updatedAt
+  };
 }
 
 function getSectionTargetIndexFromPointer(flowItems: ContentFlowItem[], pointer: Point) {
@@ -1889,10 +1919,24 @@ function getBlockDragPreviewPlacement({
     };
   }
 
+  if (isSectionTextBlock(activeBlock)) {
+    const fallbackIndex = getContentTargetIndexFromPointer(
+      getContentFlowForBlockMove(buildRenderModel(config), activeBlock.id),
+      getDragIntentPoint(pointer, dragRect) ?? pointer
+    );
+
+    return {
+      blockId: activeBlock.id,
+      targetSectionId: topLevelBlockSectionId,
+      targetIndex: 0,
+      targetContentIndex: fallbackIndex ?? 0
+    };
+  }
+
   const targetSectionId = topLevelBlockSectionId;
 
   const targetBlocks = config.blocks
-    .filter((block) => block.sectionId === targetSectionId && block.id !== activeBlock.id)
+    .filter((block) => block.sectionId === targetSectionId && block.id !== activeBlock.id && !isSectionTextBlock(block))
     .sort(bySortOrder);
   const targetIndex =
     getInsertionIndexFromPointer({
@@ -1923,9 +1967,9 @@ function getTopLevelContentTargetFromDrag(
   const flowItems = getContentFlowForBlockMove(buildRenderModel(config), activeBlock.id);
   for (let index = 0; index < flowItems.length; index += 1) {
     const item = flowItems[index];
-    if (item.type !== "section") continue;
+    if (item.type !== "text-block" && item.type !== "section") continue;
 
-    const rect = findAdminSectionHeadingElement(item.id)?.getBoundingClientRect();
+    const rect = item.type === "section" ? findAdminSectionHeadingElement(item.id)?.getBoundingClientRect() : findAdminBlockElement(item.id)?.getBoundingClientRect();
     if (!rect) continue;
 
     const verticalIntentBand = Math.max(20, rect.height * 0.65);
@@ -1939,6 +1983,27 @@ function getTopLevelContentTargetFromDrag(
   }
 
   return null;
+}
+
+function getContentTargetIndexFromPointer(flowItems: ContentFlowItem[], pointer: Point | null) {
+  if (!pointer) return null;
+
+  const measuredItems = flowItems
+    .map((item, index) => {
+      const rect =
+        item.type === "section"
+          ? findAdminSectionHeadingElement(item.id)?.getBoundingClientRect()
+          : findAdminBlockElement(item.id)?.getBoundingClientRect();
+      return rect ? { index, rect } : null;
+    })
+    .filter((item): item is { index: number; rect: DOMRect } => item !== null)
+    .sort((a, b) => (Math.abs(a.rect.top - b.rect.top) > 8 ? a.rect.top - b.rect.top : a.rect.left - b.rect.left));
+
+  for (const item of measuredItems) {
+    if (pointer.y < item.rect.top + item.rect.height / 2) return item.index;
+  }
+
+  return flowItems.length;
 }
 
 function getPlacementFromDrag({
@@ -2551,6 +2616,83 @@ function BlockDropPreview({
     >
       <div className="grid h-full w-full place-items-center rounded-[18px] bg-white/45 text-xs font-semibold text-[#1479FF]">
         放到这里
+      </div>
+    </div>
+  );
+}
+
+function TextBlockDropPreview({ block }: { block: Block }) {
+  return (
+    <div className="pointer-events-none rounded-[20px] border border-dashed border-[#1479FF]/45 bg-[#EDF6FF]/55 px-2 py-2">
+      <BlockCard block={block} disableActions withLayout={false} className="min-h-0 opacity-55" />
+    </div>
+  );
+}
+
+function SortableTextBlock({
+  block,
+  device,
+  isDragOverlayActive,
+  disableSortableTransform,
+  onEdit,
+  onDelete,
+  onSelect
+}: {
+  block: Block;
+  device: LayoutDevice;
+  isDragOverlayActive: boolean;
+  disableSortableTransform: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onSelect: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id });
+  const visualTransform = disableSortableTransform || isDragOverlayActive ? undefined : CSS.Translate.toString(transform);
+  const visualTransition = disableSortableTransform ? undefined : transition;
+
+  return (
+    <div
+      ref={setNodeRef}
+      data-admin-block="true"
+      data-admin-block-id={block.id}
+      style={{ transform: visualTransform, transition: visualTransition }}
+      className={cn(
+        "admin-draggable group relative cursor-grab rounded-[20px] px-0 py-1 transition-all duration-200 ease-out active:cursor-grabbing",
+        isDragging || isDragOverlayActive ? "z-20 opacity-20" : ""
+      )}
+      onClick={onSelect}
+      {...attributes}
+      {...listeners}
+    >
+      <BlockCard
+        block={block}
+        disableActions
+        withLayout={false}
+        className="min-h-0 rounded-[20px] transition group-hover:bg-[#F3F4F6]"
+      />
+      <div className={cn("pointer-events-none absolute inset-0 z-50 transition", device === "mobile" ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
+        <button
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+          className="pointer-events-auto absolute -left-3 -top-3 grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition hover:border-red-100 hover:bg-red-50"
+        >
+          <Trash2 className="h-4 w-4 text-red-500" />
+        </button>
+        <button
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            onEdit();
+          }}
+          className="pointer-events-auto absolute -right-3 -top-3 grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition hover:border-[#D8E9FF] hover:bg-[#F2F8FF]"
+        >
+          <Pencil className="h-4 w-4" />
+        </button>
       </div>
     </div>
   );
@@ -3482,7 +3624,6 @@ function normalizeBlocks(blocks: Block[]) {
 function modalTitle(modal: NonNullable<ModalState>) {
   if (modal.type === "tags") return "编辑 Tags";
   if (modal.type === "social") return "编辑社交按钮";
-  if (modal.type === "section") return "编辑 Section";
   if (modal.type === "block") return "编辑 Block";
   if (modal.type === "add-block") return "添加 Block";
   return "项目设置";

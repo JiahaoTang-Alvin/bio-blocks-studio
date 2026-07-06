@@ -5,6 +5,7 @@ export const blockTypes: BlockType[] = [
   "project",
   "image",
   "text",
+  "section",
   "social",
   "video",
   "status"

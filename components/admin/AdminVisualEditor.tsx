@@ -999,10 +999,13 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
                     {(() => {
                       const nodes: React.ReactNode[] = [];
                       let contentCursor = 0;
+                      let didRenderTextPreview = false;
 
                       function pushTextPreview(position: number) {
                         if (!activeDragBlock || !isSectionTextBlock(activeDragBlock)) return;
+                        if (didRenderTextPreview) return;
                         if (activeTextPreviewContentIndex !== position) return;
+                        didRenderTextPreview = true;
                         nodes.push(<TextBlockDropPreview key={`text-block-preview:${activeDragBlock.id}:${position}`} block={activeDragBlock} />);
                       }
 

@@ -181,6 +181,7 @@ type BlockPlacementDraft = {
 };
 
 const blockDropPreviewId = "__block_drop_preview__";
+let adminDragBlockRectsSnapshot = new Map<string, MeasuredRect>();
 
 type RectLike = Pick<DOMRectReadOnly, "left" | "top" | "width" | "height">;
 type MeasuredRect = RectLike & Pick<DOMRectReadOnly, "right" | "bottom">;
@@ -618,6 +619,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
   function onDragStart(event: DragStartEvent) {
     const activeId = String(event.active.id);
     const activeBlock = config.blocks.find((block) => block.id === activeId);
+    captureAdminBlockRects();
     const activeRect = getAdminBlockVisualRect(activeId) ?? event.active.rect.current.initial;
     const startPointer = getClientPoint(event.activatorEvent);
     const overlayRect = activeBlock && activeRect ? getDragOverlayRect(activeBlock, activeRect, editorDevice) : null;
@@ -835,6 +837,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     dragPointerSourceRef.current = null;
     dragOverlayRectRef.current = null;
     activeDragBlockIdRef.current = null;
+    clearAdminBlockRectsSnapshot();
     cancelDragPreviewSync();
     window.removeEventListener("pointermove", updateDragPointerFromPointerEvent);
     window.removeEventListener("touchmove", updateDragPointerFromTouchEvent);
@@ -1476,8 +1479,7 @@ function DragOverlayBlockPreview({ block, width, height }: { block: Block; width
 }
 
 function getAdminBlockVisualRect(blockId: string) {
-  const element = findAdminBlockElement(blockId);
-  return element?.getBoundingClientRect() ?? null;
+  return getMeasuredAdminBlockRect(blockId);
 }
 
 function getDragOverlayRect(block: Block, rect: RectLike, device: LayoutDevice): DragOverlayRect {
@@ -1494,6 +1496,41 @@ function findAdminBlockElement(blockId: string) {
   return Array.from(document.querySelectorAll<HTMLElement>("[data-admin-block-id]")).find(
     (element) => element.dataset.adminBlockId === blockId
   );
+}
+
+function captureAdminBlockRects() {
+  const rects = new Map<string, MeasuredRect>();
+  for (const element of document.querySelectorAll<HTMLElement>("[data-admin-block-id]")) {
+    const blockId = element.dataset.adminBlockId;
+    if (!blockId) continue;
+    rects.set(blockId, copyMeasuredRect(element.getBoundingClientRect()));
+  }
+  adminDragBlockRectsSnapshot = rects;
+  return rects;
+}
+
+function clearAdminBlockRectsSnapshot() {
+  adminDragBlockRectsSnapshot = new Map();
+}
+
+function getMeasuredAdminBlockRect(blockId: string) {
+  const snapshotRect = adminDragBlockRectsSnapshot.get(blockId);
+  if (snapshotRect) return snapshotRect;
+
+  const element = findAdminBlockElement(blockId);
+  const rect = element?.getBoundingClientRect();
+  return rect ? copyMeasuredRect(rect) : null;
+}
+
+function copyMeasuredRect(rect: DOMRectReadOnly): MeasuredRect {
+  return {
+    left: rect.left,
+    top: rect.top,
+    width: rect.width,
+    height: rect.height,
+    right: rect.right,
+    bottom: rect.bottom
+  };
 }
 
 function getClientPoint(event: Event): Point | null {
@@ -1619,7 +1656,7 @@ function getTopLevelContentTargetFromDrag(
     const item = flowItems[index];
     if (item.type !== "text-block") continue;
 
-    const rect = findAdminBlockElement(item.id)?.getBoundingClientRect();
+    const rect = getMeasuredAdminBlockRect(item.id);
     if (!rect) continue;
 
     const verticalIntentBand = Math.max(20, rect.height * 0.65);
@@ -1719,10 +1756,10 @@ function getContentTargetIndexFromPointer(flowItems: ContentFlowItem[], pointer:
 
   const measuredItems = flowItems
     .map((item, index) => {
-      const rect = findAdminBlockElement(item.id)?.getBoundingClientRect();
+      const rect = getMeasuredAdminBlockRect(item.id);
       return rect ? { index, rect } : null;
     })
-    .filter((item): item is { index: number; rect: DOMRect } => item !== null)
+    .filter((item): item is { index: number; rect: MeasuredRect } => item !== null)
     .sort((a, b) => (Math.abs(a.rect.top - b.rect.top) > 8 ? a.rect.top - b.rect.top : a.rect.left - b.rect.left));
 
   for (const item of measuredItems) {
@@ -1735,10 +1772,10 @@ function getContentTargetIndexFromPointer(flowItems: ContentFlowItem[], pointer:
 function getContentGapTargetIndexFromPointer(flowItems: ContentFlowItem[], pointer: Point) {
   const measuredItems = flowItems
     .map((item, index) => {
-      const rect = findAdminBlockElement(item.id)?.getBoundingClientRect();
+      const rect = getMeasuredAdminBlockRect(item.id);
       return rect ? { index, rect } : null;
     })
-    .filter((item): item is { index: number; rect: DOMRect } => item !== null)
+    .filter((item): item is { index: number; rect: MeasuredRect } => item !== null)
     .sort((a, b) => (Math.abs(a.rect.top - b.rect.top) > 8 ? a.rect.top - b.rect.top : a.rect.left - b.rect.left));
 
   if (measuredItems.length === 0) return null;
@@ -1858,7 +1895,7 @@ function getInsertionIndexFromPointer({
 
 function isPointerInBlockInsertionBand(targetBlocks: Block[], pointer: Point) {
   return targetBlocks.some((block) => {
-    const rect = findAdminBlockElement(block.id)?.getBoundingClientRect();
+    const rect = getMeasuredAdminBlockRect(block.id);
     if (!rect) return false;
 
     const verticalBand = Math.max(48, rect.height * 0.42);
@@ -2129,16 +2166,16 @@ function getInsertionIndexFromBlockRects(targetBlocks: Block[], pointer: Point) 
 
   const items = targetBlocks
     .map((block, index) => {
-      const rect = findAdminBlockElement(block.id)?.getBoundingClientRect();
+      const rect = getMeasuredAdminBlockRect(block.id);
       return rect ? { index, rect } : null;
     })
-    .filter((item): item is { index: number; rect: DOMRect } => item !== null)
+    .filter((item): item is { index: number; rect: MeasuredRect } => item !== null)
     .sort((a, b) => (Math.abs(a.rect.top - b.rect.top) > 8 ? a.rect.top - b.rect.top : a.rect.left - b.rect.left));
 
   if (items.length === 0) return targetBlocks.length;
 
   const rowThreshold = Math.max(24, Math.min(...items.map((item) => item.rect.height)) * 0.5);
-  const rows: Array<Array<{ index: number; rect: DOMRect }>> = [];
+  const rows: Array<Array<{ index: number; rect: MeasuredRect }>> = [];
   for (const item of items) {
     const row = rows.find((candidate) => Math.abs(candidate[0].rect.top - item.rect.top) <= rowThreshold);
     if (row) {

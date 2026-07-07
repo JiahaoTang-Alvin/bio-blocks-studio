@@ -3927,12 +3927,14 @@ function ProjectSettingsForm({
             type="button"
             onClick={() => setActivePanel(panel.id)}
             className={cn(
-              "grid gap-0.5 rounded-xl px-3 py-2 text-left transition",
-              activePanel === panel.id ? "bg-black text-white" : "text-[#475569] hover:bg-[#F8FAFC] hover:text-[#111]"
+              "grid gap-0.5 rounded-xl border px-3 py-2 text-left transition",
+              activePanel === panel.id
+                ? "border-[#BFDBFE] bg-[#EFF6FF] text-[#1E3A5F]"
+                : "border-transparent text-[#475569] hover:bg-[#F8FAFC] hover:text-[#111]"
             )}
           >
             <span className="text-sm font-semibold">{panel.label}</span>
-            <span className={cn("text-xs", activePanel === panel.id ? "text-white/70" : "text-[#94A3B8]")}>{panel.description}</span>
+            <span className={cn("text-xs", activePanel === panel.id ? "text-[#5B7896]" : "text-[#94A3B8]")}>{panel.description}</span>
           </button>
         ))}
       </aside>
@@ -3940,7 +3942,6 @@ function ProjectSettingsForm({
       <div className="min-w-0">
         {activePanel === "basic" ? (
           <section className="grid gap-3">
-            <h4 className="text-sm font-bold text-[#111]">基础与编辑器</h4>
             <Field label="项目名称/project name">
               <Input value={settings.projectName} onChange={(event) => patchSettings({ projectName: event.target.value })} />
             </Field>
@@ -3949,7 +3950,6 @@ function ProjectSettingsForm({
 
         {activePanel === "web" ? (
           <section className="grid gap-3">
-            <h4 className="text-sm font-bold text-[#111]">网页与域名</h4>
             <div className="grid gap-3 md:grid-cols-2">
               <Field label="网页标题/site title">
                 <Input value={contentSettings.siteTitle} onChange={(event) => patchContentSettings({ siteTitle: event.target.value })} />
@@ -3974,7 +3974,6 @@ function ProjectSettingsForm({
 
         {activePanel === "seo" ? (
           <section className="grid gap-3">
-            <h4 className="text-sm font-bold text-[#111]">SEO</h4>
             <div className="grid gap-3 md:grid-cols-2">
               <Field label="SEO 标题/SEO title">
                 <Input value={contentSettings.seoTitle ?? ""} onChange={(event) => patchContentSettings({ seoTitle: event.target.value })} />
@@ -4005,7 +4004,6 @@ function ProjectSettingsForm({
           <section className="grid gap-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h4 className="text-sm font-bold text-[#111]">多语言</h4>
                 <p className="mt-1 text-sm text-[#64748B]">启用两个以上语言后，编辑器顶部会出现语言切换。</p>
               </div>
               <Button type="button" variant="secondary" size="sm" onClick={addLanguage}>
@@ -4060,7 +4058,6 @@ function ProjectSettingsForm({
           <section className="grid gap-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h4 className="text-sm font-bold text-[#111]">多版本</h4>
                 <p className="mt-1 text-sm text-[#64748B]">访问隐藏入口后会跳回主页，并保持该版本 10 次主页访问。</p>
               </div>
               <Button type="button" variant="secondary" size="sm" onClick={addVariant}>
@@ -4118,7 +4115,6 @@ function ProjectSettingsForm({
 
         {activePanel === "appearance" ? (
           <section className="grid gap-3">
-            <h4 className="text-sm font-bold text-[#111]">外观</h4>
             <div className="grid gap-3 md:grid-cols-2">
               <Field label="主色">
                 <Input type="color" value={theme.primaryColor} onChange={(event) => patchTheme({ primaryColor: event.target.value })} />
@@ -4163,7 +4159,6 @@ function ProjectSettingsForm({
         {activePanel === "config" ? (
           <section className="grid gap-3 rounded-xl border border-[#EAEAEA] bg-[#FAFAFA] p-4">
             <div>
-              <h4 className="text-sm font-bold text-[#111]">配置导入导出</h4>
               <p className="mt-1 text-sm text-[#64748B]">导入会覆盖当前编辑器里的草稿，确认后还需要点击保存才会发布。</p>
             </div>
             <div className="flex flex-wrap gap-2">

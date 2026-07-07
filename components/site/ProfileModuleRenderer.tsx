@@ -36,9 +36,9 @@ export function ProfileModuleRenderer({ module, profile }: { module: ProfileModu
       );
     }
     case "headline":
-      return <p className="text-base font-medium text-[#333]">{profile.headline}</p>;
+      return profile.headline.trim() ? <p className="whitespace-pre-wrap text-base font-medium text-[#333]">{profile.headline}</p> : null;
     case "bio":
-      return <p className="text-sm leading-7 text-[var(--site-muted)]">{profile.bio}</p>;
+      return profile.bio.trim() ? <p className="whitespace-pre-wrap text-sm leading-7 text-[var(--site-muted)]">{profile.bio}</p> : null;
     case "tags":
       return (
         <div className="flex flex-wrap gap-2">
@@ -50,7 +50,7 @@ export function ProfileModuleRenderer({ module, profile }: { module: ProfileModu
         </div>
       );
     case "location":
-      return profile.location ? (
+      return profile.location?.trim() ? (
         <div className="flex items-center gap-2 text-sm text-[var(--site-muted)]">
           <MapPin className="h-4 w-4" />
           <span>{profile.location}</span>

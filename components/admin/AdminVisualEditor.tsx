@@ -1419,7 +1419,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
           onClose={() => setModal(null)}
           onSave={save}
           isSaving={isSaving}
-          canSave={validation.success}
+          canSave={modal.type !== "project-settings" || validation.success}
           footerStart={
             modal.type === "block" ? (
               <Button
@@ -1500,7 +1500,9 @@ function EditableProfile({
           />
           <InlineProfileText
             value={profile.headline}
+            multiline
             className="rounded-xl px-1 text-base font-medium leading-6 hover:bg-[#F1F5F9]"
+            inputClassName="min-h-20 text-base font-medium leading-6"
             onChange={(headline) => onPatch({ headline })}
           />
           <div className="text-base leading-6">
@@ -1622,7 +1624,7 @@ function InlineProfileText({
       }}
       className={cn("min-h-7 text-left transition", className)}
     >
-      <span className="inline-flex items-center gap-1.5">
+      <span className={cn("inline-flex items-center gap-1.5", value && "whitespace-pre-wrap")}>
         {prefix}
         {value || <span className="text-[#9CA3AF]">{placeholder}</span>}
       </span>
@@ -3764,7 +3766,7 @@ function ProfileQuickForm({ profile, onPatch }: { profile: Profile; onPatch: (pa
           <Input value={profile.displayName} onChange={(event) => onPatch({ displayName: event.target.value })} />
         </Field>
         <Field label="Headline">
-          <Input value={profile.headline} onChange={(event) => onPatch({ headline: event.target.value })} />
+          <Textarea value={profile.headline} onChange={(event) => onPatch({ headline: event.target.value })} className="min-h-20" />
         </Field>
         <Field label="位置">
           <Input value={profile.location ?? ""} onChange={(event) => onPatch({ location: event.target.value })} />

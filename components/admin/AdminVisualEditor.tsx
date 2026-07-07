@@ -67,6 +67,7 @@ import {
   getContentVariantKey,
   getEnabledVariants,
   getMainVariantId,
+  getVariantLanguages,
   getVariantMainLocale,
   getSiteContentSnapshot,
   getNextContentSortOrder,
@@ -3865,13 +3866,28 @@ function ProjectSettingsForm({
     const nextSortOrder = Math.max(0, ...settings.variants.variants.map((variant) => variant.sortOrder)) + 1;
     const id = `v${nextSortOrder}`;
     const mainLocale = getVariantMainLanguageCode(settings.variants.mainVariantId);
+    const mainLanguage = getVariantLanguageList(settings.variants.mainVariantId).find((language) => language.code === mainLocale) ?? {
+      code: mainLocale,
+      label: mainLocale,
+      isEnabled: true,
+      sortOrder: 1
+    };
     patchSettings({
       variants: {
         ...settings.variants,
         isEnabled: true,
         variants: [
           ...settings.variants.variants,
-          { id, name: "New version", accessCode: id, isEnabled: true, sortOrder: nextSortOrder, mainLocale, languageSettings: { [mainLocale]: { isEnabled: true } } }
+          {
+            id,
+            name: "New version",
+            accessCode: id,
+            isEnabled: true,
+            sortOrder: nextSortOrder,
+            mainLocale,
+            languages: [{ ...mainLanguage, sortOrder: 1, isEnabled: true }],
+            languageSettings: { [mainLocale]: { isEnabled: true } }
+          }
         ]
       }
     });
@@ -3917,7 +3933,10 @@ function ProjectSettingsForm({
                   languageSettings: {
                     ...variant.languageSettings,
                     [locale]: { isEnabled }
-                  }
+                  },
+                  languages: ensureVariantLanguages(variant).map((language) =>
+                    language.code === locale ? { ...language, isEnabled: locale === variantMainLocale ? true : isEnabled } : language
+                  )
                 }
               : variant
           )
@@ -3927,27 +3946,10 @@ function ProjectSettingsForm({
     });
   }
 
-  function getVariantLanguageCodes(variantId: string) {
-    const codes = new Set<string>([getVariantMainLanguageCode(variantId)]);
-    const variant = settings.variants.variants.find((item) => item.id === variantId);
-    const languageSettings = variant?.languageSettings;
-    for (const locale of Object.keys(languageSettings ?? {})) {
-      codes.add(locale);
-    }
-    if (!languageSettings) {
-      for (const key of Object.keys(config.contentVariants ?? {})) {
-        const [snapshotVariantId, locale] = key.split(":");
-        if (snapshotVariantId === variantId && locale) {
-          codes.add(locale);
-        }
-      }
-    }
-    return codes;
-  }
-
   function addVariantLanguage(variantId: string) {
-    const nextSortOrder = Math.max(0, ...settings.languages.languages.map((language) => language.sortOrder)) + 1;
-    const code = getNextLanguageCode(settings.languages.languages.map((language) => language.code));
+    const variantLanguages = getVariantLanguageList(variantId);
+    const nextSortOrder = Math.max(0, ...variantLanguages.map((language) => language.sortOrder)) + 1;
+    const code = getNextLanguageCode(variantLanguages.map((language) => language.code));
     const nextLanguage = { code, label: "New Language", isEnabled: true, sortOrder: nextSortOrder };
     const sourceConfig = materializeSiteConfig(config, variantId, getVariantMainLanguageCode(variantId));
     onChange({
@@ -3956,8 +3958,7 @@ function ProjectSettingsForm({
         ...settings,
         languages: {
           ...settings.languages,
-          isEnabled: true,
-          languages: [...settings.languages.languages, nextLanguage]
+          isEnabled: true
         },
         variants: {
           ...settings.variants,
@@ -3965,6 +3966,7 @@ function ProjectSettingsForm({
             variant.id === variantId
               ? {
                   ...variant,
+                  languages: [...ensureVariantLanguages(variant), nextLanguage],
                   languageSettings: {
                     ...variant.languageSettings,
                     [code]: { isEnabled: true }
@@ -3981,15 +3983,24 @@ function ProjectSettingsForm({
     });
   }
 
-  function updateLanguageLabel(code: string, label: string) {
+  function updateVariantLanguageLabel(variantId: string, code: string, label: string) {
     if (!label.trim()) return;
     onChange({
       ...config,
       settings: {
         ...settings,
-        languages: {
-          ...settings.languages,
-          languages: settings.languages.languages.map((language) => (language.code === code ? { ...language, label } : language))
+        variants: {
+          ...settings.variants,
+          variants: settings.variants.variants.map((variant) =>
+            variant.id === variantId
+              ? {
+                  ...variant,
+                  languages: ensureVariantLanguages(variant).map((language) =>
+                    language.code === code ? { ...language, label } : language
+                  )
+                }
+              : variant
+          )
         }
       }
     });
@@ -4010,7 +4021,11 @@ function ProjectSettingsForm({
             if (variant.id !== variantId) return variant;
             const nextLanguageSettings = { ...variant.languageSettings };
             delete nextLanguageSettings[locale];
-            return { ...variant, languageSettings: nextLanguageSettings };
+            return {
+              ...variant,
+              languages: ensureVariantLanguages(variant).filter((language) => language.code !== locale),
+              languageSettings: nextLanguageSettings
+            };
           })
         }
       },
@@ -4019,7 +4034,7 @@ function ProjectSettingsForm({
   }
 
   function setVariantMainLanguage(variantId: string, locale: string) {
-    const language = settings.languages.languages.find((item) => item.code === locale);
+    const language = getVariantLanguageList(variantId).find((item) => item.code === locale);
     if (!window.confirm(`把「${language?.label || locale}」设为这个版本的主语言？`)) return;
     applyVariantMainLanguage(variantId, locale);
   }
@@ -4039,9 +4054,10 @@ function ProjectSettingsForm({
           ...settings.languages,
           mainLocale: variantId === settings.variants.mainVariantId ? locale : settings.languages.mainLocale,
           isEnabled: settings.languages.isEnabled || locale !== settings.languages.mainLocale,
-          languages: settings.languages.languages.map((language) =>
-            language.code === locale ? { ...language, isEnabled: true } : language
-          )
+          languages:
+            variantId === settings.variants.mainVariantId
+              ? getVariantLanguageList(variantId).map((language) => (language.code === locale ? { ...language, isEnabled: true } : language))
+              : settings.languages.languages
         },
         variants: {
           ...settings.variants,
@@ -4050,6 +4066,9 @@ function ProjectSettingsForm({
               ? {
                   ...variant,
                   mainLocale: locale,
+                  languages: ensureVariantLanguages(variant).map((language) =>
+                    language.code === locale ? { ...language, isEnabled: true } : language
+                  ),
                   languageSettings: {
                     ...variant.languageSettings,
                     [locale]: { isEnabled: true }
@@ -4069,6 +4088,14 @@ function ProjectSettingsForm({
     const state = variant?.languageSettings?.[locale];
     if (state) return state.isEnabled;
     return Boolean(config.contentVariants?.[getContentVariantKey(variantId, locale)]);
+  }
+
+  function getVariantLanguageList(variantId: string) {
+    return getVariantLanguages(config, variantId);
+  }
+
+  function ensureVariantLanguages(variant: SiteConfig["settings"]["variants"]["variants"][number]) {
+    return variant.languages?.length ? [...variant.languages].sort(bySortOrder) : getVariantLanguageList(variant.id);
   }
 
   function getVariantMainLanguageCode(variantId: string) {
@@ -4197,9 +4224,8 @@ function ProjectSettingsForm({
                     value={getVariantMainLanguageCode(settings.variants.mainVariantId)}
                     onChange={(event) => applyVariantMainLanguage(settings.variants.mainVariantId, event.target.value)}
                   >
-                    {[...settings.languages.languages]
+                    {getVariantLanguageList(settings.variants.mainVariantId)
                       .sort(bySortOrder)
-                      .filter((language) => getVariantLanguageCodes(settings.variants.mainVariantId).has(language.code))
                       .map((language) => (
                         <option key={language.code} value={language.code}>
                           {language.label}
@@ -4242,9 +4268,8 @@ function ProjectSettingsForm({
                       </Button>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {[...settings.languages.languages]
+                      {getVariantLanguageList(variant.id)
                         .sort(bySortOrder)
-                        .filter((language) => getVariantLanguageCodes(variant.id).has(language.code))
                         .map((language) => {
                           const isMainLocale = language.code === getVariantMainLanguageCode(variant.id);
                           const isEnabled = getLanguageIsEnabledForVariant(variant.id, language.code);
@@ -4263,7 +4288,7 @@ function ProjectSettingsForm({
                               />
                               <Input
                                 value={language.label}
-                                onChange={(event) => updateLanguageLabel(language.code, event.target.value)}
+                                onChange={(event) => updateVariantLanguageLabel(variant.id, language.code, event.target.value)}
                                 className="h-7 min-w-[56px] max-w-[180px] border-transparent bg-transparent px-1 py-0 text-xs"
                                 style={{ width: `${Math.max(5, Math.min(18, language.label.length + 1))}ch` }}
                               />

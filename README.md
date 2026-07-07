@@ -88,7 +88,7 @@ The site is driven by one validated config object:
 - `sections`: legacy field kept empty by the current editor
 - `blocks`: project/link/image/text/social/video/status cards plus full-width `section` text blocks
 - `theme`: colors, radius, shadow, and font settings
-- `settings`: project name, public site title, description, URL, SEO overrides, language settings, variant settings, feature toggles, and internal layout order metadata
+- `settings`: project name, public site title, description, URL, SEO overrides, variant-scoped language settings, feature toggles, and internal layout order metadata
 - `contentVariants`: optional per-version/per-locale content snapshots keyed as `variantId:locale`
 
 The admin top bar uses `settings.projectName`. The public page metadata uses:
@@ -98,7 +98,7 @@ The admin top bar uses `settings.projectName`. The public page metadata uses:
 - `settings.siteUrl`
 - optional SEO overrides from `settings.seoTitle`, `settings.seoDescription`, `settings.seoCanonicalUrl`, and `settings.seoOgImage`
 
-The root `profile`, `blocks`, `theme`, and metadata are the main version/main language. Extra audience versions are stored in `contentVariants` and fall back to the main content when a snapshot has not been edited yet. Languages are attached under each version; adding a language to a version creates that version/language snapshot, each version can choose its own main language, and hiding a language keeps the snapshot for later.
+The root `profile`, `blocks`, `theme`, and metadata are the main version/main language. Extra audience versions are stored in `contentVariants` and fall back to the main content when a snapshot has not been edited yet. Languages live inside each version as isolated records; adding or renaming a language in one version does not change other versions. Adding a language creates that version/language snapshot, each version can choose its own main language, and hiding a language keeps the snapshot for later.
 
 Hidden variant links use short paths such as `/u1`. A valid access code stores the selected variant in an HTTP-only cookie, redirects back to `/`, and keeps that version active for 10 homepage visits.
 

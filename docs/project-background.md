@@ -46,11 +46,11 @@ Do not reintroduce visible blank sections as placeholders. If blocks are detache
 
 Variants are role or audience versions of the same personal site, such as a developer version, internship version, or company-facing version. Languages are edited inside the selected variant.
 
-The admin editor keeps a `baseConfig` plus a materialized editing view. Switching the top-bar version or language calls `materializeSiteConfig(...)`; edits to non-main content write back through `writeSiteContentSnapshot(...)` into `contentVariants`. Global project settings, the language list, the variant list, import, and export still belong to `baseConfig`.
+The admin editor keeps a `baseConfig` plus a materialized editing view. Switching the top-bar version or language calls `materializeSiteConfig(...)`; edits to non-main content write back through `writeSiteContentSnapshot(...)` into `contentVariants`. Global project settings, the variant list, import, and export still belong to `baseConfig`. Languages are stored inside each variant as `settings.variants.variants[].languages`; `settings.languages` is retained as a legacy compatibility mirror of the main variant only.
 
-The top-bar language picker is filtered by the selected variant. The main locale is always available; other enabled languages appear only when that selected variant has its own `variantId:locale` snapshot. This prevents a version with no translated content from showing every global language option.
+The top-bar language picker is filtered by the selected variant. The main locale is always available; other enabled languages appear only when they belong to that selected variant. This prevents one version's language records from leaking into another version.
 
-In project settings, languages and variants share one `多版本&多语言` branch. The main interaction starts from version cards: add a version, then use the plus control inside that version to add languages. Adding a language to a version creates the matching `variantId:locale` snapshot. The language capsule can be renamed, hidden with its checkbox, promoted to that version's main language after confirmation, or deleted with confirmation. The main language is stored per variant so one version's fallback language does not affect another version.
+In project settings, languages and variants share one `多版本&多语言` branch. The main interaction starts from version cards: add a version, then use the plus control inside that version to add languages. Adding a language to a version creates the matching `variantId:locale` snapshot and a language record only inside that version. The language capsule can be renamed, hidden with its checkbox, promoted to that version's main language after confirmation, or deleted with confirmation. The main language is stored per variant so one version's fallback language does not affect another version.
 
 Public routing uses hidden short access codes:
 

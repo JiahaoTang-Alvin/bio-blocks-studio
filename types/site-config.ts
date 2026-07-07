@@ -23,6 +23,7 @@ export type SiteVariant = {
   isEnabled: boolean;
   sortOrder: number;
   mainLocale?: string;
+  languages?: SiteLanguage[];
   languageSettings?: Record<string, { isEnabled: boolean }>;
 };
 

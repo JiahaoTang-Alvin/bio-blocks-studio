@@ -269,7 +269,16 @@ export const defaultSiteConfig: SiteConfig = {
       isEnabled: false,
       mainVariantId: "main",
       variants: [
-        { id: "main", name: "主版本", accessCode: "", isEnabled: true, sortOrder: 1, mainLocale: "zh-CN", languageSettings: { "zh-CN": { isEnabled: true } } }
+        {
+          id: "main",
+          name: "主版本",
+          accessCode: "",
+          isEnabled: true,
+          sortOrder: 1,
+          mainLocale: "zh-CN",
+          languages: [{ code: "zh-CN", label: "中文", isEnabled: true, sortOrder: 1 }],
+          languageSettings: { "zh-CN": { isEnabled: true } }
+        }
       ]
     }
   },

@@ -153,6 +153,16 @@ const variantSettingsSchema = z
           isEnabled: z.boolean(),
           sortOrder: z.number().int().nonnegative(),
           mainLocale: z.string().min(1).optional(),
+          languages: z
+            .array(
+              z.object({
+                code: z.string().min(1),
+                label: z.string().min(1),
+                isEnabled: z.boolean(),
+                sortOrder: z.number().int().nonnegative()
+              })
+            )
+            .optional(),
           languageSettings: z.record(z.object({ isEnabled: z.boolean() })).optional()
         })
       )
@@ -228,8 +238,15 @@ export const siteConfigSchema = z
         ctx.addIssue({ code: "custom", path: ["settings", "variants"], message: `Duplicate variant id: ${variant.id}` });
       }
       variantIds.add(variant.id);
-      if (variant.mainLocale && !languageCodes.has(variant.mainLocale)) {
-        ctx.addIssue({ code: "custom", path: ["settings", "variants", variant.id, "mainLocale"], message: "Variant main language must exist in languages" });
+      const variantLanguageCodes = new Set<string>();
+      for (const language of variant.languages ?? []) {
+        if (variantLanguageCodes.has(language.code)) {
+          ctx.addIssue({ code: "custom", path: ["settings", "variants", variant.id, "languages"], message: `Duplicate variant language code: ${language.code}` });
+        }
+        variantLanguageCodes.add(language.code);
+      }
+      if (variant.mainLocale && variant.languages?.length && !variantLanguageCodes.has(variant.mainLocale)) {
+        ctx.addIssue({ code: "custom", path: ["settings", "variants", variant.id, "mainLocale"], message: "Variant main language must exist in that variant's languages" });
       }
 
       if (accessCode) {

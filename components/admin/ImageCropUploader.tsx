@@ -93,7 +93,7 @@ export function ImageCropUploader({
     setFile(nextFile);
     setRatio("1:1");
     setRotation(0);
-    setCropRect(fitCropToAspect({ x: 15, y: 15, width: 70, height: 70 }, 1, 1));
+    setCropRect(getMaxCropRectForAspect(1, 1));
     setMediaBounds(null);
     setNaturalSize({ width: 0, height: 0 });
 
@@ -142,7 +142,7 @@ export function ImageCropUploader({
       setCropRect((current) =>
         isCustomRatio
           ? constrainCropRect(current)
-          : fitCropToAspect(current, activeRatioValue, nextBounds.width / nextBounds.height)
+          : getMaxCropRectForAspect(activeRatioValue, nextBounds.width / nextBounds.height)
       );
     }
 
@@ -186,7 +186,7 @@ export function ImageCropUploader({
       setCropRect((current) => constrainCropRect(current));
       return;
     }
-    setCropRect((current) => fitCropToAspect(current, ratioValues[nextRatio], mediaAspect));
+    setCropRect(getMaxCropRectForAspect(ratioValues[nextRatio], mediaAspect));
   }
 
   function startCropDrag(event: React.PointerEvent<HTMLElement>, mode: CropDragMode) {
@@ -346,12 +346,11 @@ export function ImageCropUploader({
                           });
                         }}
                       />
-                      <div className="absolute inset-0 bg-black/20" />
                       {mediaBounds ? (
                         <div
                           onPointerDown={(event) => startCropDrag(event, "move")}
                           className={cn(
-                            "absolute touch-none cursor-move border-2 border-white shadow-[0_0_0_999px_rgba(0,0,0,0.24)]",
+                            "absolute touch-none cursor-move border-2 border-white shadow-[0_0_0_999px_rgba(0,0,0,0.42)]",
                             shape === "circle" ? "rounded-full" : "rounded-[18px]"
                           )}
                           style={{
@@ -412,7 +411,7 @@ export function ImageCropUploader({
                         variant="secondary"
                         onClick={() => {
                           setRotation((current) => (current + 90) % 360);
-                          setCropRect(fitCropToAspect({ x: 15, y: 15, width: 70, height: 70 }, activeRatioValue, mediaAspect));
+                          setCropRect(getMaxCropRectForAspect(activeRatioValue, mediaAspect));
                         }}
                         className="rounded-full"
                       >
@@ -542,26 +541,16 @@ function constrainCropRect(rect: CropRect): CropRect {
   };
 }
 
-function fitCropToAspect(rect: CropRect, aspect: number, mediaAspect: number): CropRect {
-  const centerX = rect.x + rect.width / 2;
-  const centerY = rect.y + rect.height / 2;
-  let width = rect.width;
-  let height = (width * mediaAspect) / aspect;
-
-  if (height > 92) {
-    height = 92;
-    width = (height * aspect) / mediaAspect;
-  }
-  if (width > 92) {
-    width = 92;
-    height = (width * mediaAspect) / aspect;
-  }
+function getMaxCropRectForAspect(aspect: number, mediaAspect: number): CropRect {
+  const cropToMediaRatio = aspect / mediaAspect;
+  const width = cropToMediaRatio >= 1 ? 100 : cropToMediaRatio * 100;
+  const height = cropToMediaRatio >= 1 ? (1 / cropToMediaRatio) * 100 : 100;
 
   return {
     width,
     height,
-    x: clamp(centerX - width / 2, 0, 100 - width),
-    y: clamp(centerY - height / 2, 0, 100 - height)
+    x: (100 - width) / 2,
+    y: (100 - height) / 2
   };
 }
 

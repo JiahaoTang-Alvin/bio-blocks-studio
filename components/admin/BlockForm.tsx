@@ -66,6 +66,7 @@ export function BlockForm({
           label="封面"
           buttonText="更换图片"
           presentation="coverDropzone"
+          previewClassName="h-44 w-44 max-w-full"
           onUploaded={(url) => onPatch({ coverImage: url })}
           onClear={() => onPatch({ coverImage: "" })}
         />

@@ -6,13 +6,8 @@ import { toast } from "sonner";
 import type { Block } from "@/types/block";
 import { cn, isSectionTextBlock } from "@/lib/utils";
 import { getPublicBlockPlacementStyle, getPublicBlockSizeClass } from "@/constants/block-layout";
-import { ImageBlock } from "@/components/blocks/ImageBlock";
-import { LinkBlock } from "@/components/blocks/LinkBlock";
 import { ProjectBlock } from "@/components/blocks/ProjectBlock";
-import { SocialBlock } from "@/components/blocks/SocialBlock";
-import { StatusBlock } from "@/components/blocks/StatusBlock";
 import { TextBlock } from "@/components/blocks/TextBlock";
-import { VideoBlock } from "@/components/blocks/VideoBlock";
 
 export function BlockCard({
   block,
@@ -69,7 +64,7 @@ export function BlockCard({
 
   const clickable = !disableActions && block.actionType !== "none";
   const hasCover = Boolean(block.coverImage);
-  const isPlainTextCard = block.type === "text" && block.metadata?.textVariant === "plain";
+  const isPlainTextCard = block.metadata?.textVariant === "plain";
   const showFooter = Boolean(block.badge) || block.actionType === "link" || block.actionType === "download" || block.actionType === "image-preview";
 
   return (
@@ -177,13 +172,8 @@ function isPlaceholderHandle(value?: string) {
 
 function renderBlock(block: Block, hideTitle = false) {
   const displayBlock = hideTitle ? { ...block, title: "" } : block;
-  if (block.type === "project") return <ProjectBlock block={displayBlock} />;
-  if (block.type === "image") return <ImageBlock block={displayBlock} />;
-  if (block.type === "text") return <TextBlock block={displayBlock} />;
-  if (block.type === "social") return <SocialBlock block={displayBlock} />;
-  if (block.type === "video") return <VideoBlock block={displayBlock} />;
-  if (block.type === "status") return <StatusBlock block={displayBlock} />;
-  return <LinkBlock block={displayBlock} />;
+  if (block.metadata?.textVariant === "plain") return <TextBlock block={displayBlock} />;
+  return <ProjectBlock block={displayBlock} />;
 }
 
 const sectionTitleSize = {

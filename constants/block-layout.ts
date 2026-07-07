@@ -30,7 +30,7 @@ export const blockSizeClassByDevice: Record<LayoutDevice, Record<BlockSize, stri
 export const blockSizeClass = blockSizeClassByDevice.desktop;
 
 export function getBlockSize(block: Block, device: LayoutDevice) {
-  if (block.type === "section") return "section-text";
+  if (block.size === "section-text") return "section-text";
   return block.responsiveSizes?.[device] ?? block.size;
 }
 

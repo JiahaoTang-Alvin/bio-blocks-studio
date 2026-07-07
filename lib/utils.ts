@@ -35,7 +35,7 @@ export function getNextContentSortOrder(config: SiteConfig) {
 }
 
 export function isSectionTextBlock(block: Block) {
-  return block.type === "section";
+  return block.size === "section-text";
 }
 
 export function normalizeContentFlowConfig(config: SiteConfig): SiteConfig {
@@ -139,7 +139,6 @@ function sectionToTextBlock(section: Section, id: string): Block {
     title: section.title || "Untitled",
     subtitle: section.description ?? "",
     description: "",
-    type: "section",
     size: "section-text",
     responsiveSizes: {
       desktop: "section-text",

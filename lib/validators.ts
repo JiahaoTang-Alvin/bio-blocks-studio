@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { SiteConfig } from "@/types/site-config";
-import { blockActionTypes, blockTypes } from "@/constants/block-types";
+import { blockActionTypes } from "@/constants/block-types";
 import { blockSizes } from "@/constants/block-sizes";
 import { profileModules } from "@/constants/profile-modules";
 import { topLevelBlockSectionId } from "@/lib/utils";
@@ -68,7 +68,6 @@ const blockSchema = z.object({
   title: z.string().min(1),
   subtitle: z.string().optional(),
   description: z.string().optional(),
-  type: z.enum(blockTypes as [string, ...string[]]),
   size: z.enum(blockSizes as [string, ...string[]]),
   responsiveSizes: z
     .object({

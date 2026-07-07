@@ -1,13 +1,3 @@
-export type BlockType =
-  | "link"
-  | "project"
-  | "image"
-  | "text"
-  | "section"
-  | "social"
-  | "video"
-  | "status";
-
 export type BlockSize = "small-square" | "wide" | "large-square" | "full-wide" | "tall" | "section-text";
 export type LayoutDevice = "desktop" | "mobile";
 
@@ -30,7 +20,6 @@ export type Block = {
   title: string;
   subtitle?: string;
   description?: string;
-  type: BlockType;
   size: BlockSize;
   responsiveSizes?: Partial<Record<LayoutDevice, BlockSize>>;
   placements?: Partial<Record<LayoutDevice, BlockPlacement>>;

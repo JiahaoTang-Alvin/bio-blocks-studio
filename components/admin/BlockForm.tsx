@@ -11,23 +11,13 @@ import {
   Minus,
   Underline
 } from "lucide-react";
-import type { Block, BlockActionType, BlockType } from "@/types/block";
+import type { Block, BlockActionType } from "@/types/block";
 import { blockActionTypes } from "@/constants/block-types";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { ImageCropUploader } from "@/components/admin/ImageCropUploader";
-import { cn } from "@/lib/utils";
+import { cn, isSectionTextBlock } from "@/lib/utils";
 
 const iconPresets = ["link", "github", "twitter", "instagram", "youtube", "linkedin", "website", "activity", "map", "chef-hat"];
-const blockTypeLabels: Record<BlockType, string> = {
-  link: "链接/link",
-  project: "项目/project",
-  image: "图片/image",
-  text: "文字/text",
-  section: "文本 Block/section",
-  social: "社交/social",
-  video: "视频/video",
-  status: "状态/status"
-};
 const actionTypeLabels: Record<BlockActionType, string> = {
   none: "无动作/none",
   link: "前往链接/link",
@@ -45,8 +35,8 @@ export function BlockForm({
   onPatch: (patch: Partial<Block>) => void;
 }) {
   const copyText = typeof block.metadata?.copyText === "string" ? block.metadata.copyText : "";
-  const isSectionBlock = block.type === "section";
-  const isPlainTextBlock = block.type === "text" && block.metadata?.textVariant === "plain";
+  const isSectionBlock = isSectionTextBlock(block);
+  const isPlainTextBlock = block.metadata?.textVariant === "plain";
 
   function patchHref(value: string) {
     onPatch({ href: value, icon: inferIconFromUrl(value, block.icon) });
@@ -107,18 +97,6 @@ export function BlockForm({
             placeholder="填入链接"
           />
         </Field> : null}
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="类型/type">
-            <Select value={block.type} onChange={(event) => onPatch({ type: event.target.value as BlockType })}>
-              {(Object.keys(blockTypeLabels) as BlockType[]).map((type) => (
-                <option key={type} value={type}>
-                  {blockTypeLabels[type]}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
 
         {isSectionBlock ? (
           <div className="grid gap-3 md:grid-cols-2">

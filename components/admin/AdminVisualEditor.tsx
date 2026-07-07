@@ -55,7 +55,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { toast } from "sonner";
-import type { Block, BlockSize, BlockType, LayoutDevice } from "@/types/block";
+import type { Block, BlockSize, LayoutDevice } from "@/types/block";
 import type { Profile, SocialLink } from "@/types/profile";
 import type { Section } from "@/types/section";
 import type { SiteConfig } from "@/types/site-config";
@@ -101,7 +101,6 @@ type ModalState =
 type BlockTemplate = {
   label: string;
   description: string;
-  type: BlockType;
   size: BlockSize;
   icon: React.ReactNode;
   defaultTitle?: string;
@@ -121,11 +120,10 @@ const blockTemplates: {
   {
     group: "常用",
     items: [
-      { label: "标题", description: "整行标题/说明", type: "section", size: "section-text", icon: <Type /> },
+      { label: "标题", description: "整行标题/说明", size: "section-text", icon: <Type /> },
       {
         label: "文本",
         description: "文字方块",
-        type: "text",
         size: "wide",
         icon: <FileText />,
         defaultTitle: "这是一个文本block",
@@ -139,28 +137,28 @@ const blockTemplates: {
           textUnderline: false
         }
       },
-      { label: "图片", description: "上传图片", type: "image", size: "wide", icon: <ImagePlus />, defaultActionType: "image-preview" },
-      { label: "链接", description: "外部链接", type: "link", size: "small-square", icon: <LinkIcon />, defaultTitle: "New Link", defaultIcon: "link" }
+      { label: "图片", description: "上传图片", size: "wide", icon: <ImagePlus />, defaultActionType: "image-preview" },
+      { label: "链接", description: "外部链接", size: "small-square", icon: <LinkIcon />, defaultTitle: "New Link", defaultIcon: "link" }
     ]
   },
   {
     group: "经历",
     items: [
-      { label: "高光时刻", description: "状态/动态", type: "status", size: "wide", icon: <Palette /> },
-      { label: "教育经历", description: "教育卡片", type: "text", size: "large-square", icon: <BookOpen /> },
-      { label: "工作经历", description: "经历卡片", type: "project", size: "large-square", icon: <BriefcaseBusiness /> },
-      { label: "获奖记录", description: "奖项/荣誉", type: "status", size: "wide", icon: <Award />, defaultIcon: "award", defaultBadge: "Award" }
+      { label: "高光时刻", description: "状态/动态", size: "wide", icon: <Palette /> },
+      { label: "教育经历", description: "教育卡片", size: "large-square", icon: <BookOpen /> },
+      { label: "工作经历", description: "经历卡片", size: "large-square", icon: <BriefcaseBusiness /> },
+      { label: "获奖记录", description: "奖项/荣誉", size: "wide", icon: <Award />, defaultIcon: "award", defaultBadge: "Award" }
     ]
   },
   {
     group: "社交媒体",
     items: [
-      { label: "GitHub", description: "GitHub 链接", type: "social", size: "small-square", icon: <Github />, defaultIcon: "github", defaultActionType: "link" },
-      { label: "X", description: "X / Twitter", type: "social", size: "small-square", icon: <X />, defaultIcon: "twitter", defaultActionType: "link" },
-      { label: "Instagram", description: "Instagram", type: "social", size: "small-square", icon: <Instagram />, defaultIcon: "instagram", defaultActionType: "link" },
-      { label: "YouTube", description: "YouTube", type: "social", size: "small-square", icon: <Youtube />, defaultIcon: "youtube", defaultActionType: "link" },
-      { label: "LinkedIn", description: "LinkedIn", type: "social", size: "small-square", icon: <Linkedin />, defaultIcon: "linkedin", defaultActionType: "link" },
-      { label: "Website", description: "个人网站", type: "social", size: "small-square", icon: <Globe2 />, defaultIcon: "website", defaultActionType: "link" }
+      { label: "GitHub", description: "GitHub 链接", size: "small-square", icon: <Github />, defaultIcon: "github", defaultActionType: "link" },
+      { label: "X", description: "X / Twitter", size: "small-square", icon: <X />, defaultIcon: "twitter", defaultActionType: "link" },
+      { label: "Instagram", description: "Instagram", size: "small-square", icon: <Instagram />, defaultIcon: "instagram", defaultActionType: "link" },
+      { label: "YouTube", description: "YouTube", size: "small-square", icon: <Youtube />, defaultIcon: "youtube", defaultActionType: "link" },
+      { label: "LinkedIn", description: "LinkedIn", size: "small-square", icon: <Linkedin />, defaultIcon: "linkedin", defaultActionType: "link" },
+      { label: "Website", description: "个人网站", size: "small-square", icon: <Globe2 />, defaultIcon: "website", defaultActionType: "link" }
     ]
   }
 ];
@@ -586,7 +584,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
 
   function addBlock(template: BlockTemplate) {
     const now = new Date().toISOString();
-    const isTextSection = template.type === "section";
+    const isTextSection = template.size === "section-text";
     const isPlainTextBlock = template.defaultMetadata?.textVariant === "plain";
     const newBlock: Block = {
       id: crypto.randomUUID(),
@@ -594,7 +592,6 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       title: template.defaultTitle ?? (isTextSection ? "New Section" : template.label),
       subtitle: template.defaultSubtitle ?? (isPlainTextBlock ? "" : template.description),
       description: template.defaultDescription ?? "",
-      type: template.type,
       size: isTextSection ? "section-text" : template.size,
       responsiveSizes: isTextSection
         ? {
@@ -603,10 +600,10 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
           }
         : undefined,
       coverImage: "",
-      icon: template.defaultIcon ?? (template.type === "social" ? template.label.toLowerCase() : ""),
+      icon: template.defaultIcon ?? "",
       badge: template.defaultBadge ?? "",
       href: template.defaultHref ?? "",
-      actionType: template.defaultActionType ?? (template.type === "image" ? "image-preview" : "none"),
+      actionType: template.defaultActionType ?? "none",
       openInNewTab: true,
       backgroundColor: "",
       textColor: "",
@@ -634,7 +631,6 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       title: "New Section",
       subtitle: "",
       description: "",
-      type: "section",
       size: "section-text",
       responsiveSizes: {
         desktop: "section-text",

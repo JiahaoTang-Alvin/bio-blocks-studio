@@ -38,6 +38,7 @@ import {
   MapPin,
   Palette,
   Pencil,
+  Pin,
   Plus,
   RectangleHorizontal,
   RectangleVertical,
@@ -188,6 +189,7 @@ const editorCanvasWidth: Record<LayoutDevice, number> = {
 };
 
 const desktopBreakpoint = 768;
+const reservedVariantAccessCodes = new Set(["admin", "api", "icon", "_next", "favicon.ico"]);
 type ResizeMetrics = {
   left: number;
   top: number;
@@ -1417,6 +1419,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
           onClose={() => setModal(null)}
           onSave={save}
           isSaving={isSaving}
+          canSave={validation.success}
           footerStart={
             modal.type === "block" ? (
               <Button
@@ -3048,7 +3051,7 @@ function SortableTextBlock({
           <BlockCard block={block} disableActions withLayout={false} className="min-h-0" />
         </div>
       </div>
-      <div className={cn("pointer-events-none absolute inset-0 z-50 transition", device === "mobile" ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
+      <div className={cn("pointer-events-none absolute inset-0 z-30 transition", device === "mobile" ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -3217,7 +3220,7 @@ function SortableBlock({
       <div data-admin-block-surface="true" className="h-full w-full overflow-hidden rounded-[20px]">
         <BlockCard block={block} disableActions withLayout={false} className="h-full w-full select-none ring-0 group-hover:ring-2 group-hover:ring-[#1479FF]/20" />
       </div>
-      <div className={cn("pointer-events-none absolute inset-0 z-50 transition", device === "mobile" ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
+      <div className={cn("pointer-events-none absolute inset-0 z-30 transition", device === "mobile" ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
         <button
           type="button"
           onPointerDown={(event) => event.stopPropagation()}
@@ -3249,7 +3252,7 @@ function SortableBlock({
           event.stopPropagation();
           onSelect();
         }}
-        className="absolute -bottom-1 -right-1 z-40 grid h-12 w-12 touch-none cursor-nwse-resize place-items-center rounded-br-[20px] rounded-tl-[22px] bg-black text-white opacity-0 shadow-[0_10px_28px_rgba(0,0,0,0.22)] transition group-hover:opacity-100"
+        className="absolute -bottom-1 -right-1 z-30 grid h-12 w-12 touch-none cursor-nwse-resize place-items-center rounded-br-[20px] rounded-tl-[22px] bg-black text-white opacity-0 shadow-[0_10px_28px_rgba(0,0,0,0.22)] transition group-hover:opacity-100"
       >
         <span className="grid h-7 w-7 place-items-end">
           <span className="h-4 w-4 rounded-br-lg border-b-[3px] border-r-[3px] border-current" />
@@ -3513,6 +3516,7 @@ function EditorModal({
   onClose,
   onSave,
   isSaving,
+  canSave = true,
   tone = "light",
   footerStart
 }: {
@@ -3521,6 +3525,7 @@ function EditorModal({
   onClose: () => void;
   onSave: () => Promise<void>;
   isSaving: boolean;
+  canSave?: boolean;
   tone?: "light" | "dark";
   footerStart?: React.ReactNode;
 }) {
@@ -3550,7 +3555,7 @@ function EditorModal({
                 await onSave();
                 onClose();
               }}
-              disabled={isSaving}
+              disabled={isSaving || !canSave}
               className={cn(isDark ? "rounded-full bg-white text-black hover:bg-white/90" : "bg-black hover:bg-black/90")}
             >
               {isSaving ? "保存中" : "保存"}
@@ -4102,6 +4107,17 @@ function ProjectSettingsForm({
     return getVariantMainLocale(config, variantId);
   }
 
+  function getVariantAccessCodeError(variantId: string, accessCode: string) {
+    const normalized = accessCode.trim().toLowerCase();
+    if (!normalized) return "";
+    if (!/^[a-z0-9-]+$/.test(normalized)) return "只能使用小写字母、数字和短横线。";
+    if (reservedVariantAccessCodes.has(normalized)) return `“/${normalized}” 是系统路径，不能作为访问后缀。`;
+    const isDuplicate = settings.variants.variants.some(
+      (variant) => variant.id !== variantId && variant.accessCode.trim().toLowerCase() === normalized
+    );
+    return isDuplicate ? "这个访问后缀已经被其他版本使用。" : "";
+  }
+
   const panels: { id: ProjectSettingsPanel; label: string; description: string }[] = [
     { id: "basic", label: "基础与编辑器", description: "项目名称与编辑器基础行为" },
     { id: "web", label: "网页与域名", description: "公开页面标题、描述和 URL" },
@@ -4237,25 +4253,40 @@ function ProjectSettingsForm({
             </div>
 
             <div className="grid gap-3">
-              {[...settings.variants.variants].sort(bySortOrder).map((variant) => (
+              {[...settings.variants.variants].sort(bySortOrder).map((variant) => {
+                const accessCodeError = getVariantAccessCodeError(variant.id, variant.accessCode);
+                return (
                 <div key={variant.id} className="grid gap-3 rounded-xl border border-[#EAEAEA] p-3">
                   <div className="grid gap-2 md:grid-cols-[1fr_0.8fr_auto]">
-                    <Field label="编辑器备注">
-                      <Input value={variant.name} onChange={(event) => updateVariant(variant.id, { name: event.target.value })} />
-                    </Field>
-                    <Field label="访问后缀">
-                      <Input
-                        value={variant.accessCode}
-                        placeholder={variant.id === settings.variants.mainVariantId ? "主版本留空" : "u1"}
-                        onChange={(event) => updateVariant(variant.id, { accessCode: event.target.value })}
-                      />
-                    </Field>
+                    <div className="grid gap-1.5">
+                      <Field
+                        label={
+                          <>
+                            名称 <span className="text-xs font-normal text-[#94A3B8]">（仅在编辑器显示）</span>
+                          </>
+                        }
+                      >
+                        <Input value={variant.name} onChange={(event) => updateVariant(variant.id, { name: event.target.value })} />
+                      </Field>
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Field label="访问后缀">
+                        <Input
+                          value={variant.accessCode}
+                          placeholder={variant.id === settings.variants.mainVariantId ? "主版本留空" : "u1"}
+                          onChange={(event) => updateVariant(variant.id, { accessCode: event.target.value })}
+                          className={cn(accessCodeError && "border-red-300 bg-red-50/60 text-red-700 focus:border-red-400 focus:ring-red-100")}
+                        />
+                      </Field>
+                      {accessCodeError ? <p className="text-xs text-red-600">{accessCodeError}</p> : null}
+                    </div>
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
                       onClick={() => removeVariant(variant.id)}
                       disabled={settings.variants.variants.length <= 1}
+                      className="text-red-600 hover:bg-red-50 hover:text-red-700 disabled:text-[#CBD5E1] disabled:hover:bg-transparent"
                     >
                       删除
                     </Button>
@@ -4300,14 +4331,14 @@ function ProjectSettingsForm({
                                   className="text-[#5B7896] hover:text-[#1E3A5F]"
                                   aria-label={`设为主语言 ${language.label}`}
                                 >
-                                  <Settings className="h-3 w-3" />
+                                  <Pin className="h-3 w-3" />
                                 </button>
                               ) : null}
                               {!isMainLocale ? (
                                 <button
                                   type="button"
                                   onClick={() => removeVariantLanguage(variant.id, language.code)}
-                                  className="text-[#5B7896] hover:text-[#1E3A5F]"
+                                  className="text-red-500 hover:text-red-700"
                                   aria-label={`删除 ${language.label}`}
                                 >
                                   <Trash2 className="h-3 w-3" />
@@ -4319,7 +4350,8 @@ function ProjectSettingsForm({
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         ) : null}

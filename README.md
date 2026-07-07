@@ -88,13 +88,19 @@ The site is driven by one validated config object:
 - `sections`: legacy field kept empty by the current editor
 - `blocks`: project/link/image/text/social/video/status cards plus full-width `section` text blocks
 - `theme`: colors, radius, shadow, and font settings
-- `settings`: project name, public site title, description, URL, feature toggles, and internal layout order metadata
+- `settings`: project name, public site title, description, URL, SEO overrides, language settings, variant settings, feature toggles, and internal layout order metadata
+- `contentVariants`: optional per-version/per-locale content snapshots keyed as `variantId:locale`
 
 The admin top bar uses `settings.projectName`. The public page metadata uses:
 
 - `settings.siteTitle`
 - `settings.siteDescription`
 - `settings.siteUrl`
+- optional SEO overrides from `settings.seoTitle`, `settings.seoDescription`, `settings.seoCanonicalUrl`, and `settings.seoOgImage`
+
+The root `profile`, `blocks`, `theme`, and metadata are the main version/main language. Extra language or audience versions are stored in `contentVariants` and fall back to the main content when a snapshot has not been edited yet.
+
+Hidden variant links use short paths such as `/u1`. A valid access code stores the selected variant in an HTTP-only cookie, redirects back to `/`, and keeps that version active for 10 homepage visits.
 
 Config is saved to Vercel Blob at:
 
@@ -118,7 +124,7 @@ images/qrcode
 3. Enable Vercel Blob for the project.
 4. Deploy.
 5. Visit `/admin/login` and sign in with the password used to create `ADMIN_PASSWORD_HASH`.
-6. Open **项目设置** in the admin editor and set the project name, public site title, description, and public URL.
+6. Open **项目设置** in the admin editor and set the project name, public site title, description, public URL, SEO fields, language options, and variant options.
 7. Save once to persist the production config to Vercel Blob.
 
 ## Config Import and Export

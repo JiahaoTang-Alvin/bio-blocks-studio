@@ -1,6 +1,6 @@
 # Security and Deployment Notes
 
-Last updated: 2026-07-05
+Last updated: 2026-07-07
 
 ## Security Boundary
 
@@ -14,8 +14,12 @@ Admin authentication uses:
 - `ADMIN_PASSWORD_HASH`: bcrypt hash of the admin password.
 - `SESSION_SECRET`: HMAC signing secret for the session cookie.
 - `bio_template_admin_session`: HTTP-only session cookie.
+- `bio_variant_id`: HTTP-only public variant selection cookie.
+- `bio_variant_remaining`: HTTP-only public variant view counter cookie.
 
 `SESSION_SECRET` must be at least 32 characters. Short or missing secrets make session verification fail.
+
+The public variant cookies do not grant permissions. They only select which enabled public version should render on `/`, and they expire by counter after 10 homepage visits.
 
 ## Server-Only Secrets
 
@@ -74,6 +78,22 @@ Current editable project settings include:
 - `settings.siteTitle`: public browser/metadata title.
 - `settings.siteDescription`: public metadata description.
 - `settings.siteUrl`: canonical public deployment origin used for metadata.
+- `settings.seoTitle`, `settings.seoDescription`, `settings.seoCanonicalUrl`, `settings.seoOgImage`: optional metadata overrides.
+- `settings.languages`: multilingual enablement, enabled language list, and main locale.
+- `settings.variants`: public version enablement, enabled variants, main variant, and hidden access codes.
+- `contentVariants`: optional per-version/per-locale content snapshots keyed as `variantId:locale`.
+
+Variant access codes are public routing hints, not secrets. Use them for audience-specific presentation, not for private content. Reserved paths such as `admin`, `api`, `icon`, `_next`, and `favicon.ico` are rejected by validation.
+
+The project settings modal is split into these admin sections:
+
+- Basic/editor identity.
+- Web/domain metadata.
+- SEO metadata overrides.
+- Multilingual settings.
+- Multi-version settings.
+- Appearance controls.
+- Config import/export.
 
 ## Local Development
 
@@ -91,7 +111,7 @@ The app can run without Vercel Blob:
 4. Set `BLOB_READ_WRITE_TOKEN`.
 5. Set `ADMIN_PASSWORD_HASH`.
 6. Set a random `SESSION_SECRET` of at least 32 characters.
-7. Sign in at `/admin/login`, open **项目设置**, and confirm project name, public title, description, and URL.
+7. Sign in at `/admin/login`, open **项目设置**, and confirm project name, public title, description, URL, languages, variants, and SEO fields.
 8. Save once so the production Blob config is initialized.
 9. Run a production build before publishing major changes.
 

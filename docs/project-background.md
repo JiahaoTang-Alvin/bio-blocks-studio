@@ -1,6 +1,6 @@
 # Project Background
 
-Last updated: 2026-07-06
+Last updated: 2026-07-07
 
 ## Purpose
 
@@ -16,6 +16,18 @@ The project should feel like an actual usable personal page, not a marketing lan
 - Vercel Blob stores the production config and uploaded images.
 - `lib/default-site-config.ts` is sample fallback content for local development and fresh deployments.
 
+`SiteConfig` still stays as one Blob-backed document, but it now has two layers:
+
+- The root `profile`, `blocks`, `theme`, and core metadata are the main version and main language content.
+- `contentVariants` stores optional content snapshots keyed as `variantId:locale`, for example `u1:en`.
+
+When a version/language snapshot does not exist, rendering falls back to the nearest available content in this order:
+
+1. Requested version + requested locale.
+2. Requested version + main locale.
+3. Main version + requested locale.
+4. Root main version + main locale.
+
 ## Important Mental Model
 
 The old `sections` concept is now represented as `Block` records with `type: "section"` and `size: "section-text"`. They are full-width text blocks, not containers that own block cards.
@@ -30,19 +42,37 @@ If an older config has `sections`, normalize each section into a `type: "section
 
 Do not reintroduce visible blank sections as placeholders. If blocks are detached from a section, make them top-level blocks.
 
+## Language and Variant Routing
+
+Variants are role or audience versions of the same personal site, such as a developer version, internship version, or company-facing version. Languages are edited inside the selected variant.
+
+The admin editor keeps a `baseConfig` plus a materialized editing view. Switching the top-bar version or language calls `materializeSiteConfig(...)`; edits to non-main content write back through `writeSiteContentSnapshot(...)` into `contentVariants`. Global project settings, the language list, the variant list, import, and export still belong to `baseConfig`.
+
+Public routing uses hidden short access codes:
+
+- `app/[accessCode]/route.ts` checks whether the path matches an enabled variant access code such as `/u1`.
+- A valid access code writes HTTP-only variant cookies and redirects to `/`, so the visible URL returns to the normal homepage.
+- `proxy.ts` decrements the variant view counter on `/`; after 10 homepage visits it clears the variant cookies.
+- `app/page.tsx` resolves the active variant from cookies and resolves locale from `Accept-Language`.
+
+The short access code namespace must not collide with system paths such as `admin`, `api`, `icon`, `_next`, or `favicon.ico`. `lib/validators.ts` enforces this before config save.
+
 ## Main Files
 
 - `app/page.tsx`: public page entry.
+- `app/[accessCode]/route.ts`: hidden variant access-code entry and redirect.
 - `app/admin/page.tsx`: protected admin entry.
+- `proxy.ts`: public variant cookie view-count expiry.
 - `components/admin/AdminVisualEditor.tsx`: primary admin editor.
 - `components/admin/ImageCropUploader.tsx`: shared image upload/crop dialog.
 - `components/admin/BlockForm.tsx`: block editing form.
 - `components/site/SiteLayout.tsx`: public layout shell.
 - `components/site/ContentArea.tsx`: ordered public content rendering.
 - `components/blocks/BlockCard.tsx`: main block card renderer.
-- `lib/utils.ts`: render model, ordering helpers, top-level block id.
+- `lib/utils.ts`: render model, ordering helpers, top-level block id, language/variant materialization helpers.
 - `lib/validators.ts`: config validation.
 - `lib/blob-config.ts`: Vercel Blob read/write.
+- `lib/public-variant-cookies.ts`: public variant cookie names and 10-view limit.
 - `lib/default-site-config.ts`: sample fallback config.
 
 ## Design Direction
@@ -72,6 +102,7 @@ The right content width should be content-aware on desktop. It should use at lea
 - Admin authentication is a single password hash plus signed session cookie.
 - Image uploads are public Blob objects.
 - Config history and migrations are not yet implemented.
+- Public variant selection is cookie-based and intentionally lightweight; it is not authentication or access control.
 
 ## Future Development Ideas
 

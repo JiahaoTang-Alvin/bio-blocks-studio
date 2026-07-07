@@ -63,12 +63,18 @@ import { validateSiteConfig } from "@/lib/validators";
 import {
   bySortOrder,
   buildRenderModel,
+  getEnabledLanguages,
+  getEnabledVariants,
+  getMainLocale,
+  getMainVariantId,
   getNextContentSortOrder,
   isSectionTextBlock,
+  materializeSiteConfig,
   normalizeContentFlowConfig,
   normalizeSortOrder,
   cn,
-  topLevelBlockSectionId
+  topLevelBlockSectionId,
+  writeSiteContentSnapshot
 } from "@/lib/utils";
 import {
   blockGridClassByDevice,
@@ -97,6 +103,8 @@ type ModalState =
   | { type: "add-block" }
   | { type: "project-settings" }
   | null;
+
+type ProjectSettingsPanel = "basic" | "web" | "seo" | "languages" | "variants" | "appearance" | "config";
 
 type BlockTemplate = {
   label: string;
@@ -247,7 +255,9 @@ type EditorContentItem =
   | { id: string; type: "text-block"; block: Block; sortOrder: number };
 
 export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig }) {
-  const [config, setConfig] = useState(() => normalizeContentFlowConfig(initialConfig));
+  const [baseConfig, setBaseConfig] = useState(() => normalizeContentFlowConfig(initialConfig));
+  const [activeVariantId, setActiveVariantId] = useState(() => getMainVariantId(initialConfig));
+  const [activeLocale, setActiveLocale] = useState(() => getMainLocale(initialConfig));
   const [modal, setModal] = useState<ModalState>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -272,13 +282,29 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
   const activeDragBlockIdRef = useRef<string | null>(null);
   const dragPreviewPlacementRef = useRef<DragPreviewPlacement | null>(null);
   const dragPreviewSyncFrameRef = useRef<number | null>(null);
+  const validation = useMemo(() => validateSiteConfig(baseConfig), [baseConfig]);
+  const enabledLanguages = useMemo(() => getEnabledLanguages(baseConfig), [baseConfig]);
+  const enabledVariants = useMemo(() => getEnabledVariants(baseConfig), [baseConfig]);
+  const resolvedActiveVariantId = enabledVariants.some((variant) => variant.id === activeVariantId)
+    ? activeVariantId
+    : getMainVariantId(baseConfig);
+  const resolvedActiveLocale = enabledLanguages.some((language) => language.code === activeLocale)
+    ? activeLocale
+    : getMainLocale(baseConfig);
+  const activeVariantIdRef = useRef(resolvedActiveVariantId);
+  const activeLocaleRef = useRef(resolvedActiveLocale);
+  const config = useMemo(
+    () => materializeSiteConfig(baseConfig, resolvedActiveVariantId, resolvedActiveLocale),
+    [baseConfig, resolvedActiveVariantId, resolvedActiveLocale]
+  );
   const configRef = useRef(config);
   const editorDeviceRef = useRef(editorDevice);
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 320, tolerance: 10 } })
   );
-  const validation = useMemo(() => validateSiteConfig(config), [config]);
+  const shouldShowLanguagePicker = baseConfig.settings.languages.isEnabled && enabledLanguages.length > 1;
+  const shouldShowVariantPicker = baseConfig.settings.variants.isEnabled && enabledVariants.length > 1;
   const renderModel = useMemo(() => buildRenderModel(config), [config]);
   const blockSectionById = useMemo(() => {
     return new Map(config.blocks.map((block) => [block.id, block.sectionId]));
@@ -361,6 +387,14 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
   }, [config]);
 
   useEffect(() => {
+    activeVariantIdRef.current = resolvedActiveVariantId;
+  }, [resolvedActiveVariantId]);
+
+  useEffect(() => {
+    activeLocaleRef.current = resolvedActiveLocale;
+  }, [resolvedActiveLocale]);
+
+  useEffect(() => {
     editorDeviceRef.current = editorDevice;
   }, [editorDevice]);
 
@@ -416,11 +450,24 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     setIsDirty(true);
   }
 
+  function updateBaseConfig(next: SiteConfig) {
+    setBaseConfig(normalizeContentFlowConfig(next));
+    setIsDirty(true);
+  }
+
+  function setConfig(next: SiteConfig | ((current: SiteConfig) => SiteConfig)) {
+    setBaseConfig((current) => {
+      const currentActiveConfig = materializeSiteConfig(current, activeVariantIdRef.current, activeLocaleRef.current);
+      const nextActiveConfig = typeof next === "function" ? next(currentActiveConfig) : next;
+      return writeSiteContentSnapshot(current, activeVariantIdRef.current, activeLocaleRef.current, nextActiveConfig);
+    });
+  }
+
   function exportConfig() {
-    const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(baseConfig, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    const safeName = (config.settings.projectName || "site-config").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    const safeName = (baseConfig.settings.projectName || "site-config").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
     link.href = url;
     link.download = `${safeName || "site-config"}.json`;
     document.body.appendChild(link);
@@ -439,7 +486,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       return;
     }
 
-    update(result.data);
+    updateBaseConfig(result.data);
     toast.success("配置已导入", { description: "检查无误后点击保存才会覆盖线上配置。" });
   }
 
@@ -998,7 +1045,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
   }
 
   async function save() {
-    const result = validateSiteConfig(config);
+    const result = validateSiteConfig(baseConfig);
     if (!result.success) {
       toast.error("保存失败", { description: result.error });
       return;
@@ -1018,7 +1065,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       return;
     }
 
-    setConfig((current) => ({ ...current, updatedAt: body?.updatedAt ?? new Date().toISOString() }));
+    setBaseConfig((current) => ({ ...current, updatedAt: body?.updatedAt ?? new Date().toISOString() }));
     setIsDirty(false);
     toast.success("已保存");
   }
@@ -1028,10 +1075,38 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       <header className="sticky top-0 z-40 border-b border-[#EAF0F8] bg-white">
         <div className="mx-auto flex max-w-[1180px] items-center justify-between gap-3 px-5 py-3">
           <div>
-            <p className="text-sm font-semibold">{config.settings.projectName}</p>
+            <p className="text-sm font-semibold">{baseConfig.settings.projectName}</p>
             <p className="text-xs text-[#6B7280]">{isDirty ? "有未保存修改" : "已保存"} · 所见即所得编辑</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {shouldShowVariantPicker ? (
+              <Select
+                value={resolvedActiveVariantId}
+                onChange={(event) => setActiveVariantId(event.target.value)}
+                className="h-9 w-[132px] text-xs"
+                aria-label="选择版本"
+              >
+                {enabledVariants.map((variant) => (
+                  <option key={variant.id} value={variant.id}>
+                    {variant.name}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
+            {shouldShowLanguagePicker ? (
+              <Select
+                value={resolvedActiveLocale}
+                onChange={(event) => setActiveLocale(event.target.value)}
+                className="h-9 w-[112px] text-xs"
+                aria-label="选择语言"
+              >
+                {enabledLanguages.map((language) => (
+                  <option key={language.code} value={language.code}>
+                    {language.label}
+                  </option>
+                ))}
+              </Select>
+            ) : null}
             <Button variant="secondary" size="sm" onClick={() => setModal({ type: "project-settings" })}>
               <Settings className="h-4 w-4" />
               项目设置
@@ -1361,7 +1436,14 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
           ) : null}
           {modal.type === "add-block" ? <AddBlockDialog onAdd={addBlock} /> : null}
           {modal.type === "project-settings" ? (
-            <ProjectSettingsForm config={config} onChange={update} onExport={exportConfig} onImport={importConfig} />
+            <ProjectSettingsForm
+              config={baseConfig}
+              contentConfig={config}
+              onChange={updateBaseConfig}
+              onContentChange={update}
+              onExport={exportConfig}
+              onImport={importConfig}
+            />
           ) : null}
         </EditorModal>
       ) : null}
@@ -3726,133 +3808,393 @@ function AddBlockDialog({ onAdd }: { onAdd: (template: BlockTemplate) => void })
 
 function ProjectSettingsForm({
   config,
+  contentConfig,
   onChange,
+  onContentChange,
   onExport,
   onImport
 }: {
   config: SiteConfig;
+  contentConfig: SiteConfig;
   onChange: (config: SiteConfig) => void;
+  onContentChange: (config: SiteConfig) => void;
   onExport: () => void;
   onImport: (file: File) => Promise<void>;
 }) {
-  const theme = config.theme;
+  const theme = contentConfig.theme;
   const settings = config.settings;
+  const contentSettings = contentConfig.settings;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [activePanel, setActivePanel] = useState<ProjectSettingsPanel>("basic");
 
   function patchTheme(patch: Partial<SiteConfig["theme"]>) {
-    onChange({ ...config, theme: { ...theme, ...patch } });
+    onContentChange({ ...contentConfig, theme: { ...theme, ...patch } });
+  }
+
+  function patchContentSettings(patch: Partial<SiteConfig["settings"]>) {
+    onContentChange({ ...contentConfig, settings: { ...contentSettings, ...patch } });
   }
 
   function patchSettings(patch: Partial<SiteConfig["settings"]>) {
     onChange({ ...config, settings: { ...settings, ...patch } });
   }
 
+  function updateLanguage(code: string, patch: Partial<SiteConfig["settings"]["languages"]["languages"][number]>) {
+    const nextCode = patch.code ?? code;
+    patchSettings({
+      languages: {
+        ...settings.languages,
+        mainLocale: settings.languages.mainLocale === code ? nextCode : settings.languages.mainLocale,
+        languages: settings.languages.languages.map((language) => (language.code === code ? { ...language, ...patch } : language))
+      }
+    });
+  }
+
+  function addLanguage() {
+    const nextSortOrder = Math.max(0, ...settings.languages.languages.map((language) => language.sortOrder)) + 1;
+    const code = `lang-${nextSortOrder}`;
+    patchSettings({
+      languages: {
+        ...settings.languages,
+        languages: [...settings.languages.languages, { code, label: "New language", isEnabled: false, sortOrder: nextSortOrder }]
+      }
+    });
+  }
+
+  function removeLanguage(code: string) {
+    const nextLanguages = settings.languages.languages.filter((language) => language.code !== code);
+    patchSettings({
+      languages: {
+        ...settings.languages,
+        mainLocale: settings.languages.mainLocale === code ? nextLanguages[0]?.code ?? "zh-CN" : settings.languages.mainLocale,
+        languages: nextLanguages.length ? normalizeSortOrder(nextLanguages) : settings.languages.languages
+      }
+    });
+  }
+
+  function updateVariant(id: string, patch: Partial<SiteConfig["settings"]["variants"]["variants"][number]>) {
+    const nextId = patch.id ?? id;
+    patchSettings({
+      variants: {
+        ...settings.variants,
+        mainVariantId: settings.variants.mainVariantId === id ? nextId : settings.variants.mainVariantId,
+        variants: settings.variants.variants.map((variant) => (variant.id === id ? { ...variant, ...patch } : variant))
+      }
+    });
+  }
+
+  function addVariant() {
+    const nextSortOrder = Math.max(0, ...settings.variants.variants.map((variant) => variant.sortOrder)) + 1;
+    const id = `v${nextSortOrder}`;
+    patchSettings({
+      variants: {
+        ...settings.variants,
+        variants: [
+          ...settings.variants.variants,
+          { id, name: "New version", accessCode: id, isEnabled: false, sortOrder: nextSortOrder }
+        ]
+      }
+    });
+  }
+
+  function removeVariant(id: string) {
+    const nextVariants = settings.variants.variants.filter((variant) => variant.id !== id);
+    patchSettings({
+      variants: {
+        ...settings.variants,
+        mainVariantId: settings.variants.mainVariantId === id ? nextVariants[0]?.id ?? "main" : settings.variants.mainVariantId,
+        variants: nextVariants.length ? normalizeSortOrder(nextVariants) : settings.variants.variants
+      }
+    });
+  }
+
+  const panels: { id: ProjectSettingsPanel; label: string; description: string }[] = [
+    { id: "basic", label: "基础与编辑器", description: "项目名称与编辑器基础行为" },
+    { id: "web", label: "网页与域名", description: "公开页面标题、描述和 URL" },
+    { id: "seo", label: "SEO", description: "搜索与分享卡片信息" },
+    { id: "languages", label: "多语言", description: "语言展示与主语言" },
+    { id: "variants", label: "多版本", description: "隐藏入口和访客版本" },
+    { id: "appearance", label: "外观", description: "颜色、字体和展示开关" },
+    { id: "config", label: "配置导入导出", description: "JSON 备份和恢复" }
+  ];
+
   return (
-    <div className="grid gap-6 text-[#333]">
-      <section className="grid gap-3">
-        <h4 className="text-sm font-bold text-[#111]">项目</h4>
-        <Field label="项目名称/project name">
-          <Input value={settings.projectName} onChange={(event) => patchSettings({ projectName: event.target.value })} />
-        </Field>
-      </section>
+    <div className="grid gap-5 text-[#333] md:grid-cols-[190px_minmax(0,1fr)]">
+      <aside className="grid content-start gap-1 border-b border-[#EEF2F7] pb-3 md:border-b-0 md:border-r md:pb-0 md:pr-3">
+        {panels.map((panel) => (
+          <button
+            key={panel.id}
+            type="button"
+            onClick={() => setActivePanel(panel.id)}
+            className={cn(
+              "grid gap-0.5 rounded-xl px-3 py-2 text-left transition",
+              activePanel === panel.id ? "bg-black text-white" : "text-[#475569] hover:bg-[#F8FAFC] hover:text-[#111]"
+            )}
+          >
+            <span className="text-sm font-semibold">{panel.label}</span>
+            <span className={cn("text-xs", activePanel === panel.id ? "text-white/70" : "text-[#94A3B8]")}>{panel.description}</span>
+          </button>
+        ))}
+      </aside>
 
-      <section className="grid gap-3">
-        <h4 className="text-sm font-bold text-[#111]">网页</h4>
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="网页标题/site title">
-            <Input value={settings.siteTitle} onChange={(event) => patchSettings({ siteTitle: event.target.value })} />
-          </Field>
-          <Field label="公开站点 URL/public URL">
-            <Input
-              value={settings.siteUrl}
-              placeholder="https://example.com"
-              onChange={(event) => patchSettings({ siteUrl: event.target.value })}
-            />
-          </Field>
-          <Field label="网页描述/site description" className="md:col-span-2">
-            <Textarea
-              value={settings.siteDescription}
-              onChange={(event) => patchSettings({ siteDescription: event.target.value })}
-              className="min-h-24"
-            />
-          </Field>
-        </div>
-      </section>
+      <div className="min-w-0">
+        {activePanel === "basic" ? (
+          <section className="grid gap-3">
+            <h4 className="text-sm font-bold text-[#111]">基础与编辑器</h4>
+            <Field label="项目名称/project name">
+              <Input value={settings.projectName} onChange={(event) => patchSettings({ projectName: event.target.value })} />
+            </Field>
+          </section>
+        ) : null}
 
-      <section className="grid gap-3">
-        <h4 className="text-sm font-bold text-[#111]">外观</h4>
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="主色">
-            <Input type="color" value={theme.primaryColor} onChange={(event) => patchTheme({ primaryColor: event.target.value })} />
-          </Field>
-          <Field label="背景">
-            <Input type="color" value={theme.backgroundColor} onChange={(event) => patchTheme({ backgroundColor: event.target.value })} />
-          </Field>
-          <Field label="卡片背景">
-            <Input type="color" value={theme.cardBackground} onChange={(event) => patchTheme({ cardBackground: event.target.value })} />
-          </Field>
-          <Field label="文字">
-            <Input type="color" value={theme.textColor} onChange={(event) => patchTheme({ textColor: event.target.value })} />
-          </Field>
-          <Field label="边框">
-            <Input type="color" value={theme.borderColor} onChange={(event) => patchTheme({ borderColor: event.target.value })} />
-          </Field>
-          <Field label="字体">
-            <Select value={theme.fontFamily} onChange={(event) => patchTheme({ fontFamily: event.target.value as SiteConfig["theme"]["fontFamily"] })}>
-              <option value="system">system</option>
-              <option value="rounded">rounded</option>
-              <option value="mono">mono</option>
-            </Select>
-          </Field>
-        </div>
-        <div className="flex flex-wrap gap-4 text-sm text-[#475569]">
-          <label className="flex items-center gap-2">
-            <Checkbox checked={settings.enableAnimation} onChange={(event) => patchSettings({ enableAnimation: event.target.checked })} />
-            动画/animation
-          </label>
-          <label className="flex items-center gap-2">
-            <Checkbox checked={settings.enableImagePreview} onChange={(event) => patchSettings({ enableImagePreview: event.target.checked })} />
-            图片预览/image preview
-          </label>
-          <label className="flex items-center gap-2">
-            <Checkbox checked={settings.enablePublicShare} onChange={(event) => patchSettings({ enablePublicShare: event.target.checked })} />
-            公开分享/public share
-          </label>
-        </div>
-      </section>
+        {activePanel === "web" ? (
+          <section className="grid gap-3">
+            <h4 className="text-sm font-bold text-[#111]">网页与域名</h4>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="网页标题/site title">
+                <Input value={contentSettings.siteTitle} onChange={(event) => patchContentSettings({ siteTitle: event.target.value })} />
+              </Field>
+              <Field label="公开站点 URL/public URL">
+                <Input
+                  value={settings.siteUrl}
+                  placeholder="https://example.com"
+                  onChange={(event) => patchSettings({ siteUrl: event.target.value })}
+                />
+              </Field>
+              <Field label="网页描述/site description" className="md:col-span-2">
+                <Textarea
+                  value={contentSettings.siteDescription}
+                  onChange={(event) => patchContentSettings({ siteDescription: event.target.value })}
+                  className="min-h-24"
+                />
+              </Field>
+            </div>
+          </section>
+        ) : null}
 
-      <section className="grid gap-3 rounded-[18px] border border-[#EAEAEA] bg-[#FAFAFA] p-4">
-        <div>
-          <h4 className="text-sm font-bold text-[#111]">配置</h4>
-          <p className="mt-1 text-sm text-[#64748B]">导入会覆盖当前编辑器里的草稿，确认后还需要点击保存才会发布。</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" size="sm" onClick={onExport}>
-            <Download className="h-4 w-4" />
-            导出配置
-          </Button>
-          <Button type="button" variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
-            <Upload className="h-4 w-4" />
-            导入覆盖
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            className="hidden"
-            onChange={async (event) => {
-              const file = event.target.files?.[0];
-              event.target.value = "";
-              if (!file) return;
-              try {
-                await onImport(file);
-              } catch {
-                toast.error("导入失败", { description: "请选择有效的 JSON 配置文件。" });
-              }
-            }}
-          />
-        </div>
-      </section>
+        {activePanel === "seo" ? (
+          <section className="grid gap-3">
+            <h4 className="text-sm font-bold text-[#111]">SEO</h4>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="SEO 标题/SEO title">
+                <Input value={contentSettings.seoTitle ?? ""} onChange={(event) => patchContentSettings({ seoTitle: event.target.value })} />
+              </Field>
+              <Field label="Canonical URL">
+                <Input
+                  value={contentSettings.seoCanonicalUrl ?? ""}
+                  placeholder={settings.siteUrl}
+                  onChange={(event) => patchContentSettings({ seoCanonicalUrl: event.target.value })}
+                />
+              </Field>
+              <Field label="SEO 描述/SEO description" className="md:col-span-2">
+                <Textarea
+                  value={contentSettings.seoDescription ?? ""}
+                  placeholder={contentSettings.siteDescription}
+                  onChange={(event) => patchContentSettings({ seoDescription: event.target.value })}
+                  className="min-h-24"
+                />
+              </Field>
+              <Field label="OG 图片 URL/open graph image" className="md:col-span-2">
+                <Input value={contentSettings.seoOgImage ?? ""} onChange={(event) => patchContentSettings({ seoOgImage: event.target.value })} />
+              </Field>
+            </div>
+          </section>
+        ) : null}
+
+        {activePanel === "languages" ? (
+          <section className="grid gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-[#111]">多语言</h4>
+                <p className="mt-1 text-sm text-[#64748B]">启用两个以上语言后，编辑器顶部会出现语言切换。</p>
+              </div>
+              <Button type="button" variant="secondary" size="sm" onClick={addLanguage}>
+                <Plus className="h-4 w-4" />
+                添加
+              </Button>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-[#475569]">
+              <Checkbox
+                checked={settings.languages.isEnabled}
+                onChange={(event) => patchSettings({ languages: { ...settings.languages, isEnabled: event.target.checked } })}
+              />
+              开启多语言/multilingual
+            </label>
+            <Field label="主语言/main language">
+              <Select
+                value={settings.languages.mainLocale}
+                onChange={(event) => patchSettings({ languages: { ...settings.languages, mainLocale: event.target.value } })}
+              >
+                {settings.languages.languages.map((language) => (
+                  <option key={language.code} value={language.code}>
+                    {language.label} ({language.code})
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <div className="grid gap-2">
+              {[...settings.languages.languages].sort(bySortOrder).map((language) => (
+                <div key={language.code} className="grid gap-2 rounded-xl border border-[#EAEAEA] p-3 md:grid-cols-[auto_0.8fr_1fr_auto]">
+                  <label className="flex items-center gap-2 text-sm text-[#475569]">
+                    <Checkbox checked={language.isEnabled} onChange={(event) => updateLanguage(language.code, { isEnabled: event.target.checked })} />
+                    展示
+                  </label>
+                  <Input value={language.code} onChange={(event) => updateLanguage(language.code, { code: event.target.value })} />
+                  <Input value={language.label} onChange={(event) => updateLanguage(language.code, { label: event.target.value })} />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeLanguage(language.code)}
+                    disabled={settings.languages.languages.length <= 1}
+                  >
+                    删除
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {activePanel === "variants" ? (
+          <section className="grid gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-[#111]">多版本</h4>
+                <p className="mt-1 text-sm text-[#64748B]">访问隐藏入口后会跳回主页，并保持该版本 10 次主页访问。</p>
+              </div>
+              <Button type="button" variant="secondary" size="sm" onClick={addVariant}>
+                <Plus className="h-4 w-4" />
+                添加
+              </Button>
+            </div>
+            <label className="flex items-center gap-2 text-sm text-[#475569]">
+              <Checkbox
+                checked={settings.variants.isEnabled}
+                onChange={(event) => patchSettings({ variants: { ...settings.variants, isEnabled: event.target.checked } })}
+              />
+              开启多版本/variants
+            </label>
+            <Field label="主版本/main version">
+              <Select
+                value={settings.variants.mainVariantId}
+                onChange={(event) => patchSettings({ variants: { ...settings.variants, mainVariantId: event.target.value } })}
+              >
+                {settings.variants.variants.map((variant) => (
+                  <option key={variant.id} value={variant.id}>
+                    {variant.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <div className="grid gap-2">
+              {[...settings.variants.variants].sort(bySortOrder).map((variant) => (
+                <div key={variant.id} className="grid gap-2 rounded-xl border border-[#EAEAEA] p-3 md:grid-cols-[auto_0.8fr_1fr_0.8fr_auto]">
+                  <label className="flex items-center gap-2 text-sm text-[#475569]">
+                    <Checkbox checked={variant.isEnabled} onChange={(event) => updateVariant(variant.id, { isEnabled: event.target.checked })} />
+                    启用
+                  </label>
+                  <Input value={variant.id} onChange={(event) => updateVariant(variant.id, { id: event.target.value })} />
+                  <Input value={variant.name} onChange={(event) => updateVariant(variant.id, { name: event.target.value })} />
+                  <Input
+                    value={variant.accessCode}
+                    placeholder={variant.id === settings.variants.mainVariantId ? "主版本留空" : "u1"}
+                    onChange={(event) => updateVariant(variant.id, { accessCode: event.target.value })}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeVariant(variant.id)}
+                    disabled={settings.variants.variants.length <= 1}
+                  >
+                    删除
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {activePanel === "appearance" ? (
+          <section className="grid gap-3">
+            <h4 className="text-sm font-bold text-[#111]">外观</h4>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="主色">
+                <Input type="color" value={theme.primaryColor} onChange={(event) => patchTheme({ primaryColor: event.target.value })} />
+              </Field>
+              <Field label="背景">
+                <Input type="color" value={theme.backgroundColor} onChange={(event) => patchTheme({ backgroundColor: event.target.value })} />
+              </Field>
+              <Field label="卡片背景">
+                <Input type="color" value={theme.cardBackground} onChange={(event) => patchTheme({ cardBackground: event.target.value })} />
+              </Field>
+              <Field label="文字">
+                <Input type="color" value={theme.textColor} onChange={(event) => patchTheme({ textColor: event.target.value })} />
+              </Field>
+              <Field label="边框">
+                <Input type="color" value={theme.borderColor} onChange={(event) => patchTheme({ borderColor: event.target.value })} />
+              </Field>
+              <Field label="字体">
+                <Select value={theme.fontFamily} onChange={(event) => patchTheme({ fontFamily: event.target.value as SiteConfig["theme"]["fontFamily"] })}>
+                  <option value="system">system</option>
+                  <option value="rounded">rounded</option>
+                  <option value="mono">mono</option>
+                </Select>
+              </Field>
+            </div>
+            <div className="flex flex-wrap gap-4 text-sm text-[#475569]">
+              <label className="flex items-center gap-2">
+                <Checkbox checked={settings.enableAnimation} onChange={(event) => patchSettings({ enableAnimation: event.target.checked })} />
+                动画/animation
+              </label>
+              <label className="flex items-center gap-2">
+                <Checkbox checked={settings.enableImagePreview} onChange={(event) => patchSettings({ enableImagePreview: event.target.checked })} />
+                图片预览/image preview
+              </label>
+              <label className="flex items-center gap-2">
+                <Checkbox checked={settings.enablePublicShare} onChange={(event) => patchSettings({ enablePublicShare: event.target.checked })} />
+                公开分享/public share
+              </label>
+            </div>
+          </section>
+        ) : null}
+
+        {activePanel === "config" ? (
+          <section className="grid gap-3 rounded-xl border border-[#EAEAEA] bg-[#FAFAFA] p-4">
+            <div>
+              <h4 className="text-sm font-bold text-[#111]">配置导入导出</h4>
+              <p className="mt-1 text-sm text-[#64748B]">导入会覆盖当前编辑器里的草稿，确认后还需要点击保存才会发布。</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="secondary" size="sm" onClick={onExport}>
+                <Download className="h-4 w-4" />
+                导出配置
+              </Button>
+              <Button type="button" variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-4 w-4" />
+                导入覆盖
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  try {
+                    await onImport(file);
+                  } catch {
+                    toast.error("导入失败", { description: "请选择有效的 JSON 配置文件。" });
+                  }
+                }}
+              />
+            </div>
+          </section>
+        ) : null}
+      </div>
     </div>
   );
 }

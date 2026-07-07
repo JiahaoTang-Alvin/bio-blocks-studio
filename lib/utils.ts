@@ -2,7 +2,7 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { Block } from "@/types/block";
 import type { Section } from "@/types/section";
-import type { SiteConfig } from "@/types/site-config";
+import type { SiteConfig, SiteContentSnapshot, SiteLanguage, SiteVariant } from "@/types/site-config";
 
 export const topLevelBlockSectionId = "__top_level__";
 
@@ -81,8 +81,143 @@ export function normalizeContentFlowConfig(config: SiteConfig): SiteConfig {
     settings: {
       ...config.settings,
       topLevelBlocksSortOrder: undefined
-    }
+    },
+    contentVariants: normalizeContentVariants(config.contentVariants ?? {})
   };
+}
+
+export function getContentVariantKey(variantId: string, locale: string) {
+  return `${variantId}:${locale}`;
+}
+
+export function getMainVariantId(config: SiteConfig) {
+  return config.settings.variants.mainVariantId || "main";
+}
+
+export function getMainLocale(config: SiteConfig) {
+  return config.settings.languages.mainLocale || "zh-CN";
+}
+
+export function getEnabledLanguages(config: SiteConfig): SiteLanguage[] {
+  const languages = config.settings.languages.languages.length
+    ? config.settings.languages.languages
+    : [{ code: getMainLocale(config), label: getMainLocale(config), isEnabled: true, sortOrder: 1 }];
+  const enabled = languages.filter((language) => language.isEnabled).sort(bySortOrder);
+  return enabled.length ? enabled : languages.slice(0, 1);
+}
+
+export function getEnabledVariants(config: SiteConfig): SiteVariant[] {
+  const variants = config.settings.variants.variants.length
+    ? config.settings.variants.variants
+    : [{ id: getMainVariantId(config), name: "主版本", accessCode: "", isEnabled: true, sortOrder: 1 }];
+  const enabled = variants.filter((variant) => variant.isEnabled).sort(bySortOrder);
+  return enabled.length ? enabled : variants.slice(0, 1);
+}
+
+export function getSiteContentSnapshot(config: SiteConfig): SiteContentSnapshot {
+  return {
+    profile: config.profile,
+    sections: config.sections,
+    blocks: config.blocks,
+    theme: config.theme,
+    siteTitle: config.settings.siteTitle,
+    siteDescription: config.settings.siteDescription,
+    seoTitle: config.settings.seoTitle,
+    seoDescription: config.settings.seoDescription,
+    seoCanonicalUrl: config.settings.seoCanonicalUrl,
+    seoOgImage: config.settings.seoOgImage
+  };
+}
+
+export function materializeSiteConfig(config: SiteConfig, variantId = getMainVariantId(config), locale = getMainLocale(config)): SiteConfig {
+  const mainVariantId = getMainVariantId(config);
+  const mainLocale = getMainLocale(config);
+  const snapshot = getResolvedContentSnapshot(config, variantId, locale);
+
+  return normalizeContentFlowConfig({
+    ...config,
+    profile: snapshot.profile,
+    sections: snapshot.sections,
+    blocks: snapshot.blocks,
+    theme: snapshot.theme,
+    settings: {
+      ...config.settings,
+      siteTitle: snapshot.siteTitle ?? config.settings.siteTitle,
+      siteDescription: snapshot.siteDescription ?? config.settings.siteDescription,
+      seoTitle: snapshot.seoTitle ?? config.settings.seoTitle,
+      seoDescription: snapshot.seoDescription ?? config.settings.seoDescription,
+      seoCanonicalUrl: snapshot.seoCanonicalUrl ?? config.settings.seoCanonicalUrl,
+      seoOgImage: snapshot.seoOgImage ?? config.settings.seoOgImage
+    },
+    contentVariants: variantId === mainVariantId && locale === mainLocale ? config.contentVariants : {}
+  });
+}
+
+export function writeSiteContentSnapshot(config: SiteConfig, variantId: string, locale: string, nextConfig: SiteConfig): SiteConfig {
+  const mainVariantId = getMainVariantId(config);
+  const mainLocale = getMainLocale(config);
+  const snapshot = getSiteContentSnapshot(nextConfig);
+
+  if (variantId === mainVariantId && locale === mainLocale) {
+    return normalizeContentFlowConfig({
+      ...config,
+      profile: snapshot.profile,
+      sections: snapshot.sections,
+      blocks: snapshot.blocks,
+      theme: snapshot.theme,
+      settings: {
+        ...config.settings,
+        siteTitle: snapshot.siteTitle ?? config.settings.siteTitle,
+        siteDescription: snapshot.siteDescription ?? config.settings.siteDescription,
+        seoTitle: snapshot.seoTitle ?? config.settings.seoTitle,
+        seoDescription: snapshot.seoDescription ?? config.settings.seoDescription,
+        seoCanonicalUrl: snapshot.seoCanonicalUrl ?? config.settings.seoCanonicalUrl,
+        seoOgImage: snapshot.seoOgImage ?? config.settings.seoOgImage
+      }
+    });
+  }
+
+  return normalizeContentFlowConfig({
+    ...config,
+    contentVariants: {
+      ...(config.contentVariants ?? {}),
+      [getContentVariantKey(variantId, locale)]: normalizeContentSnapshot(snapshot)
+    }
+  });
+}
+
+export function findVariantByAccessCode(config: SiteConfig, accessCode: string) {
+  if (!config.settings.variants.isEnabled) return null;
+  const normalizedAccessCode = accessCode.trim().toLowerCase();
+  if (!normalizedAccessCode || reservedAccessCodes.has(normalizedAccessCode)) return null;
+  return getEnabledVariants(config).find((variant) => variant.accessCode.trim().toLowerCase() === normalizedAccessCode) ?? null;
+}
+
+export function resolveLocaleFromAcceptLanguage(config: SiteConfig, acceptLanguage: string | null) {
+  const enabledLanguages = getEnabledLanguages(config);
+  const mainLocale = getMainLocale(config);
+  if (!config.settings.languages.isEnabled || enabledLanguages.length <= 1 || !acceptLanguage) return mainLocale;
+
+  const languageCodes = enabledLanguages.map((language) => language.code);
+  const requested = acceptLanguage
+    .split(",")
+    .map((item) => item.trim().split(";")[0]?.toLowerCase())
+    .filter(Boolean);
+
+  for (const requestedCode of requested) {
+    const exact = languageCodes.find((code) => code.toLowerCase() === requestedCode);
+    if (exact) return exact;
+    const family = languageCodes.find((code) => code.toLowerCase().split("-")[0] === requestedCode.split("-")[0]);
+    if (family) return family;
+  }
+
+  return mainLocale;
+}
+
+export function resolvePublicVariantId(config: SiteConfig, cookieVariantId?: string) {
+  const mainVariantId = getMainVariantId(config);
+  if (!config.settings.variants.isEnabled || !cookieVariantId) return mainVariantId;
+  return getEnabledVariants(config).some((variant) => variant.id === cookieVariantId) ? cookieVariantId : mainVariantId;
 }
 
 export function buildRenderModel(config: SiteConfig): {
@@ -131,6 +266,81 @@ function getSectionTextBlockId(sectionId: string, existingBlockIds: Set<string>)
   if (!existingBlockIds.has(baseId)) return baseId;
   return `text-block-${sectionId}`;
 }
+
+function getResolvedContentSnapshot(config: SiteConfig, variantId: string, locale: string): SiteContentSnapshot {
+  const mainVariantId = getMainVariantId(config);
+  const mainLocale = getMainLocale(config);
+  const snapshots = config.contentVariants ?? {};
+  const keys = [
+    getContentVariantKey(variantId, locale),
+    getContentVariantKey(variantId, mainLocale),
+    getContentVariantKey(mainVariantId, locale),
+    getContentVariantKey(mainVariantId, mainLocale)
+  ];
+
+  for (const key of keys) {
+    const snapshot = snapshots[key];
+    if (snapshot) return snapshot;
+  }
+
+  return getSiteContentSnapshot(config);
+}
+
+function normalizeContentVariants(contentVariants: Record<string, SiteContentSnapshot>) {
+  return Object.fromEntries(
+    Object.entries(contentVariants).map(([key, snapshot]) => [key, normalizeContentSnapshot(snapshot)])
+  );
+}
+
+function normalizeContentSnapshot(snapshot: SiteContentSnapshot): SiteContentSnapshot {
+  const normalized = normalizeContentFlowConfig({
+    version: 1,
+    profile: snapshot.profile,
+    sections: snapshot.sections,
+    blocks: snapshot.blocks,
+    theme: snapshot.theme,
+    settings: {
+      projectName: "",
+      siteTitle: snapshot.siteTitle ?? "",
+      siteDescription: snapshot.siteDescription ?? "",
+      siteUrl: "",
+      seoTitle: snapshot.seoTitle ?? "",
+      seoDescription: snapshot.seoDescription ?? "",
+      seoCanonicalUrl: snapshot.seoCanonicalUrl ?? "",
+      seoOgImage: snapshot.seoOgImage ?? "",
+      enableImagePreview: true,
+      enableAnimation: true,
+      enablePublicShare: true,
+      languages: {
+        isEnabled: false,
+        mainLocale: "zh-CN",
+        languages: [{ code: "zh-CN", label: "中文", isEnabled: true, sortOrder: 1 }]
+      },
+      variants: {
+        isEnabled: false,
+        mainVariantId: "main",
+        variants: [{ id: "main", name: "主版本", accessCode: "", isEnabled: true, sortOrder: 1 }]
+      }
+    },
+    contentVariants: {},
+    updatedAt: ""
+  });
+
+  return {
+    profile: normalized.profile,
+    sections: normalized.sections,
+    blocks: normalized.blocks,
+    theme: normalized.theme,
+    siteTitle: snapshot.siteTitle,
+    siteDescription: snapshot.siteDescription,
+    seoTitle: snapshot.seoTitle,
+    seoDescription: snapshot.seoDescription,
+    seoCanonicalUrl: snapshot.seoCanonicalUrl,
+    seoOgImage: snapshot.seoOgImage
+  };
+}
+
+const reservedAccessCodes = new Set(["admin", "api", "icon", "_next", "favicon.ico"]);
 
 function sectionToTextBlock(section: Section, id: string): Block {
   return {

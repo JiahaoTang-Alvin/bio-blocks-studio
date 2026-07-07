@@ -13,7 +13,22 @@ function normalizeSiteConfig(config: SiteConfig): SiteConfig {
     ...config,
     settings: {
       ...defaultSiteConfig.settings,
-      ...config.settings
-    }
+      ...config.settings,
+      languages: {
+        ...defaultSiteConfig.settings.languages,
+        ...config.settings.languages,
+        languages: config.settings.languages?.languages?.length
+          ? config.settings.languages.languages
+          : defaultSiteConfig.settings.languages.languages
+      },
+      variants: {
+        ...defaultSiteConfig.settings.variants,
+        ...config.settings.variants,
+        variants: config.settings.variants?.variants?.length
+          ? config.settings.variants.variants
+          : defaultSiteConfig.settings.variants.variants
+      }
+    },
+    contentVariants: config.contentVariants ?? {}
   });
 }

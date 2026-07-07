@@ -119,15 +119,77 @@ const themeSchema = z.object({
   fontFamily: z.enum(["system", "rounded", "mono"])
 });
 
+const languageSettingsSchema = z
+  .object({
+    isEnabled: z.boolean().default(false),
+    mainLocale: z.string().min(1).default("zh-CN"),
+    languages: z
+      .array(
+        z.object({
+          code: z.string().min(1),
+          label: z.string().min(1),
+          isEnabled: z.boolean(),
+          sortOrder: z.number().int().nonnegative()
+        })
+      )
+      .default([{ code: "zh-CN", label: "中文", isEnabled: true, sortOrder: 1 }])
+  })
+  .default({
+    isEnabled: false,
+    mainLocale: "zh-CN",
+    languages: [{ code: "zh-CN", label: "中文", isEnabled: true, sortOrder: 1 }]
+  });
+
+const variantSettingsSchema = z
+  .object({
+    isEnabled: z.boolean().default(false),
+    mainVariantId: z.string().min(1).default("main"),
+    variants: z
+      .array(
+        z.object({
+          id: z.string().min(1),
+          name: z.string().min(1),
+          accessCode: z.string(),
+          isEnabled: z.boolean(),
+          sortOrder: z.number().int().nonnegative()
+        })
+      )
+      .default([{ id: "main", name: "主版本", accessCode: "", isEnabled: true, sortOrder: 1 }])
+  })
+  .default({
+    isEnabled: false,
+    mainVariantId: "main",
+    variants: [{ id: "main", name: "主版本", accessCode: "", isEnabled: true, sortOrder: 1 }]
+  });
+
 const settingsSchema = z.object({
   projectName: z.string().min(1).default("Bio Template Editor"),
   siteTitle: z.string(),
   siteDescription: z.string(),
   siteUrl: z.string().default(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
+  seoTitle: z.string().optional().default(""),
+  seoDescription: z.string().optional().default(""),
+  seoCanonicalUrl: z.string().optional().default(""),
+  seoOgImage: z.string().optional().default(""),
   enableImagePreview: z.boolean(),
   enableAnimation: z.boolean(),
   enablePublicShare: z.boolean(),
-  topLevelBlocksSortOrder: z.number().int().nonnegative().optional()
+  topLevelBlocksSortOrder: z.number().int().nonnegative().optional(),
+  languages: languageSettingsSchema,
+  variants: variantSettingsSchema
+});
+
+const contentSnapshotSchema = z.object({
+  profile: profileSchema,
+  sections: z.array(sectionSchema),
+  blocks: z.array(blockSchema),
+  theme: themeSchema,
+  siteTitle: z.string().optional(),
+  siteDescription: z.string().optional(),
+  seoTitle: z.string().optional(),
+  seoDescription: z.string().optional(),
+  seoCanonicalUrl: z.string().optional(),
+  seoOgImage: z.string().optional()
 });
 
 export const siteConfigSchema = z
@@ -138,9 +200,53 @@ export const siteConfigSchema = z
     blocks: z.array(blockSchema),
     theme: themeSchema,
     settings: settingsSchema,
+    contentVariants: z.record(contentSnapshotSchema).optional().default({}),
     updatedAt: z.string()
   })
   .superRefine((config, ctx) => {
+    const languageCodes = new Set<string>();
+    for (const language of config.settings.languages.languages) {
+      if (languageCodes.has(language.code)) {
+        ctx.addIssue({ code: "custom", path: ["settings", "languages"], message: `Duplicate language code: ${language.code}` });
+      }
+      languageCodes.add(language.code);
+    }
+    if (!languageCodes.has(config.settings.languages.mainLocale)) {
+      ctx.addIssue({ code: "custom", path: ["settings", "languages", "mainLocale"], message: "Main language must exist in languages" });
+    }
+    if (!config.settings.languages.languages.some((language) => language.code === config.settings.languages.mainLocale && language.isEnabled)) {
+      ctx.addIssue({ code: "custom", path: ["settings", "languages", "mainLocale"], message: "Main language must be enabled" });
+    }
+
+    const variantIds = new Set<string>();
+    const accessCodes = new Set<string>();
+    for (const variant of config.settings.variants.variants) {
+      const accessCode = variant.accessCode.trim().toLowerCase();
+      if (variantIds.has(variant.id)) {
+        ctx.addIssue({ code: "custom", path: ["settings", "variants"], message: `Duplicate variant id: ${variant.id}` });
+      }
+      variantIds.add(variant.id);
+
+      if (accessCode) {
+        if (!/^[a-z0-9-]+$/.test(accessCode)) {
+          ctx.addIssue({ code: "custom", path: ["settings", "variants", variant.id], message: "Access code can only use lowercase letters, numbers, and hyphens" });
+        }
+        if (reservedAccessCodes.has(accessCode)) {
+          ctx.addIssue({ code: "custom", path: ["settings", "variants", variant.id], message: `Access code is reserved: ${accessCode}` });
+        }
+        if (accessCodes.has(accessCode)) {
+          ctx.addIssue({ code: "custom", path: ["settings", "variants"], message: `Duplicate access code: ${accessCode}` });
+        }
+        accessCodes.add(accessCode);
+      }
+    }
+    if (!variantIds.has(config.settings.variants.mainVariantId)) {
+      ctx.addIssue({ code: "custom", path: ["settings", "variants", "mainVariantId"], message: "Main version must exist in variants" });
+    }
+    if (!config.settings.variants.variants.some((variant) => variant.id === config.settings.variants.mainVariantId && variant.isEnabled)) {
+      ctx.addIssue({ code: "custom", path: ["settings", "variants", "mainVariantId"], message: "Main version must be enabled" });
+    }
+
     const sectionIds = new Set<string>();
     const blockIds = new Set<string>();
     const moduleIds = new Set<string>();
@@ -170,6 +276,8 @@ export const siteConfigSchema = z
       moduleIds.add(profileModule);
     }
   }) as z.ZodType<SiteConfig>;
+
+const reservedAccessCodes = new Set(["admin", "api", "icon", "_next", "favicon.ico"]);
 
 export function validateSiteConfig(data: unknown):
   | { success: true; data: SiteConfig }

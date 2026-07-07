@@ -251,9 +251,32 @@ export const defaultSiteConfig: SiteConfig = {
     siteTitle: "Personal Site Studio",
     siteDescription: "A visual personal homepage template with an editable admin.",
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+    seoTitle: "",
+    seoDescription: "",
+    seoCanonicalUrl: "",
+    seoOgImage: "",
     enableImagePreview: true,
     enableAnimation: true,
-    enablePublicShare: true
+    enablePublicShare: true,
+    languages: {
+      isEnabled: false,
+      mainLocale: "zh-CN",
+      languages: [
+        { code: "zh-CN", label: "中文", isEnabled: true, sortOrder: 1 },
+        { code: "en", label: "English", isEnabled: false, sortOrder: 2 },
+        { code: "ja", label: "日本語", isEnabled: false, sortOrder: 3 }
+      ]
+    },
+    variants: {
+      isEnabled: false,
+      mainVariantId: "main",
+      variants: [
+        { id: "main", name: "主版本", accessCode: "", isEnabled: true, sortOrder: 1 },
+        { id: "u1", name: "求职版本", accessCode: "u1", isEnabled: false, sortOrder: 2 },
+        { id: "o1", name: "组织/公司版本", accessCode: "o1", isEnabled: false, sortOrder: 3 }
+      ]
+    }
   },
+  contentVariants: {},
   updatedAt: now
 };

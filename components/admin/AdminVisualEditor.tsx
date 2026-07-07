@@ -1846,6 +1846,14 @@ function getTopLevelContentGroupTarget(
   if (!candidate) return null;
 
   if (isSectionTextBlock(activeBlock)) {
+    const rowSplitIndex = getTextBlockInsertionIndexWithinContentGroup(candidate.group, intentPoint);
+    if (rowSplitIndex !== null) {
+      return {
+        targetContentIndex: rowSplitIndex,
+        targetIndex: 0
+      };
+    }
+
     const insertAfterGroup = intentPoint.y > candidate.rect.top + candidate.rect.height / 2;
     return {
       targetContentIndex: candidate.group.startIndex + (insertAfterGroup ? candidate.group.blocks.length : 0),
@@ -1904,6 +1912,58 @@ function getTopLevelContentGroupTargets(config: SiteConfig, activeBlockId: strin
   }
 
   return groups;
+}
+
+function getTextBlockInsertionIndexWithinContentGroup(group: ContentGroupTarget, intentPoint: Point) {
+  const measuredBlocks = group.blocks
+    .map((block, index) => {
+      const rect = getMeasuredAdminBlockRect(block.id);
+      return rect ? { block, index, rect } : null;
+    })
+    .filter((item): item is { block: Block; index: number; rect: MeasuredRect } => item !== null);
+
+  if (measuredBlocks.length < 2) return null;
+
+  const rowThreshold = Math.max(24, Math.min(...measuredBlocks.map((item) => item.rect.height)) * 0.45);
+  const rows: Array<{
+    items: Array<{ block: Block; index: number; rect: MeasuredRect }>;
+    top: number;
+    bottom: number;
+  }> = [];
+
+  for (const item of measuredBlocks.sort((a, b) => (Math.abs(a.rect.top - b.rect.top) > 8 ? a.rect.top - b.rect.top : a.rect.left - b.rect.left))) {
+    const centerY = item.rect.top + item.rect.height / 2;
+    const row = rows.find((candidate) => Math.abs((candidate.top + candidate.bottom) / 2 - centerY) <= rowThreshold);
+    if (row) {
+      row.items.push(item);
+      row.top = Math.min(row.top, item.rect.top);
+      row.bottom = Math.max(row.bottom, item.rect.bottom);
+      continue;
+    }
+
+    rows.push({ items: [item], top: item.rect.top, bottom: item.rect.bottom });
+  }
+
+  if (rows.length < 2) return null;
+
+  for (let index = 0; index < rows.length - 1; index += 1) {
+    const upperRow = rows[index];
+    const lowerRow = rows[index + 1];
+    const upperCenter = (upperRow.top + upperRow.bottom) / 2;
+    const lowerCenter = (lowerRow.top + lowerRow.bottom) / 2;
+    const gapPadding = Math.max(18, Math.min(lowerRow.top - upperRow.bottom, rowThreshold));
+    const isBetweenRows =
+      (intentPoint.y >= upperCenter && intentPoint.y <= lowerCenter) ||
+      (intentPoint.y >= upperRow.bottom - gapPadding && intentPoint.y <= lowerRow.top + gapPadding);
+
+    if (!isBetweenRows) continue;
+
+    const rowsBeforeTarget = rows.slice(0, index + 1);
+    const lastIndexBeforeTarget = Math.max(...rowsBeforeTarget.flatMap((row) => row.items.map((item) => item.index)));
+    return group.startIndex + lastIndexBeforeTarget + 1;
+  }
+
+  return null;
 }
 
 function getContentTargetIndexFromPointer(flowItems: ContentFlowItem[], pointer: Point | null) {

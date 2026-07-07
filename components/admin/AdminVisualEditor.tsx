@@ -543,7 +543,8 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       blockSortOrderById.set(item.id, index + 1);
     });
     const shouldReleaseAffectedPlacements =
-      originalContentIndex !== insertedIndex || !isDragPreviewAtBlockPlacement(activeBlock, placement, editorDevice);
+      shouldReleaseSiblingPlacementsForDrag(activeBlock, editorDevice) &&
+      (originalContentIndex !== insertedIndex || !isDragPreviewAtBlockPlacement(activeBlock, placement, editorDevice));
     const affectedGroupBlockIds = shouldReleaseAffectedPlacements
       ? getTopLevelBlockGroupIdsAtIndex(nextItems, insertedIndex)
       : new Set<string>();
@@ -1144,6 +1145,10 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
                             dragPreviewPlacement !== null &&
                             previewContentIndex === activeContentIndex &&
                             isDragPreviewAtBlockPlacement(activeDragBlock, dragPreviewPlacement, editorDevice);
+                          const shouldReleaseSiblingPlacements =
+                            activeDragBlock !== null &&
+                            shouldReleaseSiblingPlacementsForDrag(activeDragBlock, editorDevice) &&
+                            !isOriginalPreviewPosition;
 
                           nodes.push(
                             <EditableSection
@@ -1183,7 +1188,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
                               sectionHandleProps={{}}
                               hideHeader
                               showDragPreview={shouldShowGridPreview}
-                              releaseSiblingPlacementsDuringPreview={shouldShowGridPreview && !isOriginalPreviewPosition}
+                              releaseSiblingPlacementsDuringPreview={shouldShowGridPreview && shouldReleaseSiblingPlacements}
                             />
                           );
                           contentCursor += contentBlocks.length;
@@ -2239,6 +2244,10 @@ function isDragPreviewAtBlockPlacement(block: Block, previewPlacement: BlockPlac
     currentColumnStart === undefined || previewColumnStart === undefined || currentColumnStart === previewColumnStart;
   const isSameRow = currentRowStart === undefined || previewRowStart === undefined || currentRowStart === previewRowStart;
   return isSameColumn && isSameRow;
+}
+
+function shouldReleaseSiblingPlacementsForDrag(block: Block, device: LayoutDevice) {
+  return getLogicalColumnSpan(getBlockSize(block, device), device) > 1;
 }
 
 function getGridPlacementDistanceScore(source: GridPlacement, target: GridPlacement) {

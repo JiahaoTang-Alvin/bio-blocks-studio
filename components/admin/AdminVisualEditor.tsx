@@ -19,7 +19,6 @@ import { rectSortingStrategy, SortableContext, useSortable, verticalListSortingS
 import { CSS } from "@dnd-kit/utilities";
 import {
   Award,
-  AlignLeft,
   AppWindow,
   BookOpen,
   BriefcaseBusiness,
@@ -1210,7 +1209,6 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
               setEditorDevice(device);
             }}
             onAddBlock={() => setModal({ type: "add-block" })}
-            onAddSection={addSection}
           />
           {resizePreviewSize ? <ResizePreview activeSize={resizePreviewSize} /> : null}
         </>
@@ -2972,14 +2970,12 @@ function FloatingToolbar({
   device,
   canEditDesktop,
   onDeviceChange,
-  onAddBlock,
-  onAddSection
+  onAddBlock
 }: {
   device: LayoutDevice;
   canEditDesktop: boolean;
   onDeviceChange: (device: LayoutDevice) => void;
   onAddBlock: () => void;
-  onAddSection: () => void;
 }) {
   return (
     <div className="fixed bottom-6 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-[24px] border border-[#EAF0F8] bg-white/95 p-2 shadow-[0_18px_60px_rgba(15,23,42,0.18)] backdrop-blur">
@@ -3013,9 +3009,6 @@ function FloatingToolbar({
       <Button onClick={onAddBlock}>
         <Plus className="h-4 w-4" />
         添加 Block
-      </Button>
-      <Button variant="secondary" size="icon" onClick={onAddSection} title="添加 Section">
-        <AlignLeft className="h-4 w-4" />
       </Button>
     </div>
   );

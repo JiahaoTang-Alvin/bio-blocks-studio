@@ -60,6 +60,7 @@ This document records the current admin editor behavior and the main implementat
 - Block dragging within a card grid updates only the dragged block's grid placement. It must not renumber unrelated siblings or move top-level siblings across text blocks.
 - Dragging between text blocks/card groups uses a drag overlay plus a temporary target placeholder.
 - Each visible card group gets its own admin-only content group id. Drag placement uses the nearest real card group, not every top-level card on the page, so a card can move from one group into another group across a text block.
+- Text-block dragging can split a visible card group temporarily. When the pointer indicates a position between two visual rows of cards, the preview should render as `cards above + text preview + cards below`, and mouseup should write the same shared content order.
 - The overlay follows the pointer while the real block remains as a faint placeholder at the original location.
 - Cross-section placement is previewed with a same-sized dashed placeholder, which pushes target-section blocks away before drop.
 - Dragging a block records its logical grid column and row in the active device mode, clamped to the valid range for that block size. This supports intentional empty spaces and diagonal placements, such as one small block at top-left and another at bottom-right.
@@ -126,6 +127,9 @@ Pointer intent rules:
 - On a target square card, the pointer's left half means insert before that card and the right half means insert after it.
 - On top-level content gaps, `targetContentIndex` decides whether the square card lands above the first text block, between two text blocks, or below a text block.
 - Text blocks are content-flow items. Square cards are grouped top-level blocks. A text block never owns nearby cards.
+- When dragging a text block, expand card groups by measured visual row/column order, not only by `sortOrder`. This keeps first-time insertion into the middle of a card group consistent with later drags after the group has already been split.
+- When two text blocks are close together, choose the target by the pointer's nearest text-block body or edge. Hovering the lower half of the upper text block should insert below that upper block, not skip to below the next text block.
+- Text-block group-splitting preview and final drop must both use the same `targetContentIndex`; do not let the preview depend on one ordering model while the commit path writes another.
 
 Regression checks after touching drag logic:
 
@@ -133,6 +137,8 @@ Regression checks after touching drag logic:
 - Drag a square card to the very top above the first text block; the preview should appear there before mouseup and no page crash should occur.
 - Drag a square card between two text blocks when no square cards are already between them; the standalone preview should appear and the drop should match.
 - Drag a text block by long-press or mouse drag; after drop, no extra blue/gray preview copy should remain.
+- Drag a never-moved text block into the gap between two visual rows of cards; the text preview should appear between those rows before mouseup, and the drop should match.
+- Drag a text block over the lower half of a text block that has another text block directly below it; the target should be below the hovered text block, not below the next one.
 - Drag within a card grid and across text blocks; the page should not show `This page couldn't load`.
 
 ## Profile editing

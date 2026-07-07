@@ -529,7 +529,8 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     const now = new Date().toISOString();
     const flowItems = getContentFlowForBlockMove(buildRenderModel(config), blockId);
     const nextItems: ContentFlowItem[] = [...flowItems];
-    nextItems.splice(Math.max(0, Math.min(targetContentIndex, flowItems.length)), 0, {
+    const insertedIndex = Math.max(0, Math.min(targetContentIndex, flowItems.length));
+    nextItems.splice(insertedIndex, 0, {
       type: "top-level-block",
       id: blockId,
       block: activeBlock
@@ -539,6 +540,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     nextItems.forEach((item, index) => {
       blockSortOrderById.set(item.id, index + 1);
     });
+    const affectedGroupBlockIds = getTopLevelBlockGroupIdsAtIndex(nextItems, insertedIndex);
 
     return {
       ...config,
@@ -559,11 +561,15 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
           }
 
           if (blockSortOrderById.has(block.id)) {
-            return {
+            const nextBlock = {
               ...block,
               sectionId: topLevelBlockSectionId,
               sortOrder: blockSortOrderById.get(block.id) ?? block.sortOrder
             };
+
+            return affectedGroupBlockIds.has(block.id)
+              ? { ...withoutBlockPlacementForDevice(nextBlock, editorDevice), updatedAt: now }
+              : nextBlock;
           }
 
           return block;
@@ -574,6 +580,20 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
         topLevelBlocksSortOrder: undefined
       }
     };
+  }
+
+  function getTopLevelBlockGroupIdsAtIndex(items: ContentFlowItem[], index: number) {
+    const ids = new Set<string>();
+    if (items[index]?.type !== "top-level-block") return ids;
+
+    for (let cursor = index; cursor >= 0 && items[cursor]?.type === "top-level-block"; cursor -= 1) {
+      ids.add(items[cursor].id);
+    }
+    for (let cursor = index + 1; cursor < items.length && items[cursor]?.type === "top-level-block"; cursor += 1) {
+      ids.add(items[cursor].id);
+    }
+
+    return ids;
   }
 
   function deleteBlock(blockId: string) {

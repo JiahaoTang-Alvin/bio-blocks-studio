@@ -240,7 +240,7 @@ export function findVariantByAccessCode(config: SiteConfig, accessCode: string) 
 export function resolveLocaleFromAcceptLanguage(config: SiteConfig, acceptLanguage: string | null, variantId = getMainVariantId(config)) {
   const enabledLanguages = getAvailableLanguagesForVariant(config, variantId);
   const mainLocale = getVariantMainLocale(config, variantId);
-  if (!config.settings.languages.isEnabled || enabledLanguages.length <= 1 || !acceptLanguage) return mainLocale;
+  if (enabledLanguages.length <= 1 || !acceptLanguage) return mainLocale;
 
   const languageCodes = enabledLanguages.map((language) => language.code);
   const requested = acceptLanguage

@@ -59,7 +59,7 @@ import { toast } from "sonner";
 import type { Block, BlockSize, LayoutDevice } from "@/types/block";
 import type { Profile, SocialLink } from "@/types/profile";
 import type { Section } from "@/types/section";
-import type { SiteConfig } from "@/types/site-config";
+import type { SiteConfig, SiteLanguage } from "@/types/site-config";
 import { validateSiteConfig } from "@/lib/validators";
 import {
   bySortOrder,
@@ -109,6 +109,21 @@ type ModalState =
   | null;
 
 type ProjectSettingsPanel = "basic" | "web" | "seo" | "audiences" | "appearance" | "config";
+
+const languageOptions: { code: string; label: string; defaultNote: string }[] = [
+  { code: "zh-CN", label: "简体中文", defaultNote: "中文" },
+  { code: "zh-TW", label: "繁體中文", defaultNote: "繁體中文" },
+  { code: "en", label: "English", defaultNote: "English" },
+  { code: "en-US", label: "English (US)", defaultNote: "English US" },
+  { code: "en-GB", label: "English (UK)", defaultNote: "English UK" },
+  { code: "ja", label: "日本語", defaultNote: "日本語" },
+  { code: "ko", label: "한국어", defaultNote: "한국어" },
+  { code: "fr", label: "Français", defaultNote: "Français" },
+  { code: "de", label: "Deutsch", defaultNote: "Deutsch" },
+  { code: "es", label: "Español", defaultNote: "Español" },
+  { code: "it", label: "Italiano", defaultNote: "Italiano" },
+  { code: "pt", label: "Português", defaultNote: "Português" }
+];
 
 type BlockTemplate = {
   label: string;
@@ -311,7 +326,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 320, tolerance: 10 } })
   );
-  const shouldShowLanguagePicker = baseConfig.settings.languages.isEnabled && availableLanguages.length > 1;
+  const shouldShowLanguagePicker = availableLanguages.length > 1;
   const shouldShowVariantPicker = baseConfig.settings.variants.isEnabled && enabledVariants.length > 1;
   const renderModel = useMemo(() => buildRenderModel(config), [config]);
   const blockSectionById = useMemo(() => {
@@ -3845,6 +3860,7 @@ function ProjectSettingsForm({
   const contentSettings = contentConfig.settings;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activePanel, setActivePanel] = useState<ProjectSettingsPanel>("basic");
+  const [languageDraft, setLanguageDraft] = useState<{ variantId: string; code: string; label: string } | null>(null);
   const activeVariant = settings.variants.variants.find((variant) => variant.id === activeVariantId);
   const activeLanguage = getVariantLanguageList(activeVariantId).find((language) => language.code === activeLocale);
 
@@ -3961,11 +3977,21 @@ function ProjectSettingsForm({
     });
   }
 
-  function addVariantLanguage(variantId: string) {
+  function openAddVariantLanguage(variantId: string) {
     const variantLanguages = getVariantLanguageList(variantId);
+    const existingCodes = new Set(variantLanguages.map((language) => language.code));
+    const option = languageOptions.find((language) => !existingCodes.has(language.code)) ?? languageOptions[0];
+    setLanguageDraft({ variantId, code: option.code, label: option.defaultNote });
+  }
+
+  function addVariantLanguage(variantId: string, code: string, label: string) {
+    const normalizedCode = code.trim();
+    const normalizedLabel = label.trim();
+    if (!normalizedCode || !normalizedLabel) return;
+    const variantLanguages = getVariantLanguageList(variantId);
+    if (variantLanguages.some((language) => language.code === normalizedCode)) return;
     const nextSortOrder = Math.max(0, ...variantLanguages.map((language) => language.sortOrder)) + 1;
-    const code = getNextLanguageCode(variantLanguages.map((language) => language.code));
-    const nextLanguage = { code, label: "New Language", isEnabled: true, sortOrder: nextSortOrder };
+    const nextLanguage: SiteLanguage = { code: normalizedCode, label: normalizedLabel, isEnabled: true, sortOrder: nextSortOrder };
     const sourceConfig = materializeSiteConfig(config, variantId, getVariantMainLanguageCode(variantId));
     onChange({
       ...config,
@@ -3984,7 +4010,7 @@ function ProjectSettingsForm({
                   languages: [...ensureVariantLanguages(variant), nextLanguage],
                   languageSettings: {
                     ...variant.languageSettings,
-                    [code]: { isEnabled: true }
+                    [normalizedCode]: { isEnabled: true }
                   }
                 }
               : variant
@@ -3993,9 +4019,10 @@ function ProjectSettingsForm({
       },
       contentVariants: {
         ...(config.contentVariants ?? {}),
-        [getContentVariantKey(variantId, code)]: getSiteContentSnapshot(sourceConfig)
+        [getContentVariantKey(variantId, normalizedCode)]: getSiteContentSnapshot(sourceConfig)
       }
     });
+    setLanguageDraft(null);
   }
 
   function updateVariantLanguageLabel(variantId: string, code: string, label: string) {
@@ -4306,7 +4333,7 @@ function ProjectSettingsForm({
                   <div className="grid gap-2">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-xs font-semibold text-[#64748B]">这个版本的语言</p>
-                      <Button type="button" variant="secondary" size="sm" onClick={() => addVariantLanguage(variant.id)} className="h-8 px-2">
+                      <Button type="button" variant="secondary" size="sm" onClick={() => openAddVariantLanguage(variant.id)} className="h-8 px-2">
                         <Plus className="h-4 w-4" />
                       </Button>
                     </div>
@@ -4445,6 +4472,15 @@ function ProjectSettingsForm({
           </section>
         ) : null}
       </div>
+      {languageDraft ? (
+        <AddLanguageDialog
+          draft={languageDraft}
+          existingCodes={getVariantLanguageList(languageDraft.variantId).map((language) => language.code)}
+          onChange={setLanguageDraft}
+          onClose={() => setLanguageDraft(null)}
+          onAdd={() => addVariantLanguage(languageDraft.variantId, languageDraft.code, languageDraft.label)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -4471,13 +4507,78 @@ function removeVariantContentKeys(contentVariants: SiteConfig["contentVariants"]
   );
 }
 
-function getNextLanguageCode(existingCodes: string[]) {
+function AddLanguageDialog({
+  draft,
+  existingCodes,
+  onChange,
+  onClose,
+  onAdd
+}: {
+  draft: { variantId: string; code: string; label: string };
+  existingCodes: string[];
+  onChange: (draft: { variantId: string; code: string; label: string }) => void;
+  onClose: () => void;
+  onAdd: () => void;
+}) {
   const existing = new Set(existingCodes);
-  for (let index = existingCodes.length + 1; index < existingCodes.length + 200; index += 1) {
-    const code = `lang-${index}`;
-    if (!existing.has(code)) return code;
-  }
-  return `lang-${Date.now()}`;
+  const selectedLanguage = languageOptions.find((language) => language.code === draft.code) ?? languageOptions[0];
+  const isDuplicate = existing.has(draft.code);
+  const canAdd = Boolean(draft.label.trim()) && !isDuplicate;
+
+  return (
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-black/20 p-4" onMouseDown={onClose}>
+      <div
+        className="grid w-full max-w-sm gap-4 rounded-2xl border border-[#EAF0F8] bg-white p-4 text-[#111] shadow-2xl"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold">添加语言</p>
+            <p className="mt-1 text-xs text-[#64748B]">语言代码由选项决定，备注名只在管理端显示。</p>
+          </div>
+          <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full text-[#64748B] hover:bg-[#F1F5F9]">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <Field label="语言代码">
+          <Select
+            value={draft.code}
+            onChange={(event) => {
+              const option = languageOptions.find((language) => language.code === event.target.value) ?? selectedLanguage;
+              onChange({ ...draft, code: option.code, label: option.defaultNote });
+            }}
+          >
+            {languageOptions.map((language) => (
+              <option key={language.code} value={language.code} disabled={existing.has(language.code)}>
+                {language.label} · {language.code}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <Field label="备注名">
+          <Input
+            value={draft.label}
+            placeholder={selectedLanguage.defaultNote}
+            onChange={(event) => onChange({ ...draft, label: event.target.value })}
+            className={cn(!draft.label.trim() && "border-red-300 bg-red-50/60 focus:border-red-400 focus:ring-red-100")}
+          />
+        </Field>
+
+        {isDuplicate ? <p className="text-xs text-red-600">这个版本下面已经有 {draft.code} 了，请选择其他语言。</p> : null}
+
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose}>
+            取消
+          </Button>
+          <Button type="button" onClick={onAdd} disabled={!canAdd}>
+            添加
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function ScopeBadges({ variantName, languageName }: { variantName: string; languageName: string }) {

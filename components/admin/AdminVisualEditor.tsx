@@ -527,7 +527,9 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     if (!activeBlock) return config;
 
     const now = new Date().toISOString();
-    const flowItems = getContentFlowForBlockMove(buildRenderModel(config), blockId);
+    const renderModel = buildRenderModel(config);
+    const originalContentIndex = getContentIndexForBlock(renderModel, blockId);
+    const flowItems = getContentFlowForBlockMove(renderModel, blockId);
     const nextItems: ContentFlowItem[] = [...flowItems];
     const insertedIndex = Math.max(0, Math.min(targetContentIndex, flowItems.length));
     nextItems.splice(insertedIndex, 0, {
@@ -540,7 +542,11 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     nextItems.forEach((item, index) => {
       blockSortOrderById.set(item.id, index + 1);
     });
-    const affectedGroupBlockIds = getTopLevelBlockGroupIdsAtIndex(nextItems, insertedIndex);
+    const shouldReleaseAffectedPlacements =
+      originalContentIndex !== insertedIndex || !isDragPreviewAtBlockPlacement(activeBlock, placement, editorDevice);
+    const affectedGroupBlockIds = shouldReleaseAffectedPlacements
+      ? getTopLevelBlockGroupIdsAtIndex(nextItems, insertedIndex)
+      : new Set<string>();
 
     return {
       ...config,
@@ -594,6 +600,25 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
     }
 
     return ids;
+  }
+
+  function getContentIndexForBlock(renderModel: ReturnType<typeof buildRenderModel>, blockId: string) {
+    let index = 0;
+
+    for (const item of renderModel.orderedContentItems) {
+      if (item.type === "top-level-blocks") {
+        for (const block of item.blocks) {
+          if (block.id === blockId) return index;
+          index += 1;
+        }
+        continue;
+      }
+
+      if (item.block.id === blockId) return index;
+      index += 1;
+    }
+
+    return null;
   }
 
   function deleteBlock(blockId: string) {
@@ -1112,6 +1137,13 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
                           if (shouldShowGridPreview) {
                             didRenderGridPreview = true;
                           }
+                          const activeBlockIndex = item.blocks.findIndex((block) => block.id === activeDragBlockId);
+                          const activeContentIndex = activeBlockIndex >= 0 ? contentCursor + activeBlockIndex : null;
+                          const isOriginalPreviewPosition =
+                            activeDragBlock !== null &&
+                            dragPreviewPlacement !== null &&
+                            previewContentIndex === activeContentIndex &&
+                            isDragPreviewAtBlockPlacement(activeDragBlock, dragPreviewPlacement, editorDevice);
 
                           nodes.push(
                             <EditableSection
@@ -1151,6 +1183,7 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
                               sectionHandleProps={{}}
                               hideHeader
                               showDragPreview={shouldShowGridPreview}
+                              releaseSiblingPlacementsDuringPreview={shouldShowGridPreview && !isOriginalPreviewPosition}
                             />
                           );
                           contentCursor += contentBlocks.length;
@@ -2191,6 +2224,23 @@ function getGridColumnStartFromPlacement(placement: BlockPlacementDraft, device:
   return (placement.columnStart - 1) * baseSpan + 1;
 }
 
+function isDragPreviewAtBlockPlacement(block: Block, previewPlacement: BlockPlacementDraft | undefined, device: LayoutDevice) {
+  if (!previewPlacement) return true;
+
+  const currentColumnStart = getBlockColumnStart(block, device);
+  const currentRowStart = getBlockRowStart(block, device);
+  const previewColumnStart = getGridColumnStartFromPlacement(previewPlacement, device);
+  const previewRowStart = previewPlacement.rowStart;
+  const hasSavedPlacement = currentColumnStart !== undefined || currentRowStart !== undefined;
+
+  if (!hasSavedPlacement) return true;
+
+  const isSameColumn =
+    currentColumnStart === undefined || previewColumnStart === undefined || currentColumnStart === previewColumnStart;
+  const isSameRow = currentRowStart === undefined || previewRowStart === undefined || currentRowStart === previewRowStart;
+  return isSameColumn && isSameRow;
+}
+
 function getGridPlacementDistanceScore(source: GridPlacement, target: GridPlacement) {
   return Math.abs(source.row - target.row) * 1200 + Math.abs(source.column - target.column) * 700;
 }
@@ -2410,7 +2460,8 @@ function EditableSection({
   sectionHandleProps,
   sectionContainerProps,
   hideHeader = false,
-  showDragPreview = false
+  showDragPreview = false,
+  releaseSiblingPlacementsDuringPreview = false
 }: {
   section: Section;
   contentGroupId?: string;
@@ -2432,6 +2483,7 @@ function EditableSection({
   sectionContainerProps?: React.HTMLAttributes<HTMLDivElement> & { ref?: (node: HTMLDivElement | null) => void };
   hideHeader?: boolean;
   showDragPreview?: boolean;
+  releaseSiblingPlacementsDuringPreview?: boolean;
 }) {
   const droppableId = contentGroupId ? `content-group:${contentGroupId}` : `section:${section.id}`;
   const { setNodeRef } = useDroppable({ id: droppableId });
@@ -2469,7 +2521,7 @@ function EditableSection({
       const block =
         item.type === "preview" && item.placement
           ? { ...resizedBlock, placements: { ...resizedBlock.placements, [device]: item.placement } }
-          : shouldRenderDropPreview
+          : shouldRenderDropPreview && releaseSiblingPlacementsDuringPreview
             ? withoutBlockPlacementForDevice(resizedBlock, device)
             : resizedBlock;
       return {

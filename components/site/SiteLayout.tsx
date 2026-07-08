@@ -40,7 +40,7 @@ export function SiteLayout({ config, renderModel, languageSwitcher }: SiteLayout
           "--site-shell-max-width": `calc(320px + 3rem + ${desktopContentWidth})`
         } as React.CSSProperties
       }
-      className="min-h-screen bg-[var(--site-bg)] text-[var(--site-text)]"
+      className="min-h-screen bg-[var(--site-bg)] text-[var(--site-text)] lg:h-screen lg:overflow-hidden"
     >
       {languageSwitcher ? (
         <PublicLanguageSwitcher
@@ -49,7 +49,7 @@ export function SiteLayout({ config, renderModel, languageSwitcher }: SiteLayout
           className="fixed left-4 top-4 z-40 md:left-6 md:top-6"
         />
       ) : null}
-      <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-8 px-5 pb-24 pt-10 md:px-8 md:pt-16 lg:max-w-[var(--site-shell-max-width)] lg:grid-cols-[320px_minmax(0,var(--site-content-max-width))] lg:gap-12">
+      <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-8 px-5 pb-24 pt-10 md:px-8 md:pt-16 lg:h-full lg:max-w-[var(--site-shell-max-width)] lg:grid-cols-[320px_minmax(0,var(--site-content-max-width))] lg:gap-12 lg:overflow-hidden lg:pb-16">
         <ProfilePanel profile={renderModel.profile} />
         <ContentArea
           topLevelBlocks={renderModel.topLevelBlocks}

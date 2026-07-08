@@ -22,7 +22,7 @@ export function ContentArea({
   return (
     <section
       data-desktop-content-columns={desktopContentColumns}
-      className="content-grid-container grid min-w-0 gap-6 lg:w-full lg:max-w-[var(--site-content-max-width)] lg:justify-self-center"
+      className="content-grid-container grid min-w-0 gap-6 lg:h-full lg:w-full lg:max-w-[var(--site-content-max-width)] lg:justify-self-center lg:overflow-y-auto lg:overscroll-contain lg:pb-2 lg:pr-2"
     >
       {contentItems.map((item) =>
         item.type === "top-level-blocks" ? (

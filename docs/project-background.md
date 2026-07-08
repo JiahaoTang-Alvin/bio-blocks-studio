@@ -64,7 +64,8 @@ Public routing uses hidden short access codes:
 - A valid access code writes HTTP-only variant cookies and redirects to `/`, so the visible URL returns to the normal homepage.
 - `proxy.ts` decrements the variant view counter on `/`; after 10 homepage visits it clears the variant cookies.
 - `/reset` and `/?reset` clear the public variant cookies immediately and redirect to the main homepage.
-- `app/page.tsx` resolves the active variant from cookies, resolves locale from `Accept-Language`, and emits `robots` metadata from the active variant's `allowSeoIndex` setting.
+- `app/page.tsx` resolves the active variant from cookies, resolves locale from the visitor language cookie first and then `Accept-Language`, and emits `robots` metadata from the active variant's `allowSeoIndex` setting.
+- The public language switcher is only shown when the active variant has more than one enabled language. It writes `bio_locale`, but the server accepts that cookie only when the locale belongs to the current variant's enabled language list; otherwise rendering falls back to browser language or the variant main language. `/reset` clears the variant cookies and this manual language cookie.
 
 The short access code namespace must not collide with system paths such as `admin`, `api`, `icon`, `_next`, `favicon.ico`, or `reset`. `lib/validators.ts` enforces this before config save.
 

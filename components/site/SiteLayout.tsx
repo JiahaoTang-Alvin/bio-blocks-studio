@@ -1,5 +1,5 @@
 import type { Block } from "@/types/block";
-import type { SiteConfig } from "@/types/site-config";
+import type { SiteConfig, SiteLanguage } from "@/types/site-config";
 import type { ContentOrderItem } from "@/lib/utils";
 import { ContentArea } from "@/components/site/ContentArea";
 import { ProfilePanel } from "@/components/site/ProfilePanel";
@@ -11,7 +11,16 @@ type RenderModel = {
   orderedContentItems: ContentOrderItem[];
 };
 
-export function SiteLayout({ config, renderModel }: { config: SiteConfig; renderModel: RenderModel }) {
+type SiteLayoutProps = {
+  config: SiteConfig;
+  renderModel: RenderModel;
+  languageSwitcher?: {
+    currentLocale: string;
+    languages: SiteLanguage[];
+  };
+};
+
+export function SiteLayout({ config, renderModel, languageSwitcher }: SiteLayoutProps) {
   const theme = config.theme;
   const desktopContentColumns = getPublicDesktopContentColumns(renderModel.orderedContentItems);
   const desktopContentWidth = getPublicDesktopContentWidth(desktopContentColumns);
@@ -33,7 +42,7 @@ export function SiteLayout({ config, renderModel }: { config: SiteConfig; render
       className="min-h-screen bg-[var(--site-bg)] text-[var(--site-text)]"
     >
       <div className="mx-auto grid w-full max-w-[1180px] grid-cols-1 gap-8 px-5 pb-24 pt-10 md:px-8 md:pt-16 lg:max-w-[var(--site-shell-max-width)] lg:grid-cols-[320px_minmax(0,var(--site-content-max-width))] lg:gap-12">
-        <ProfilePanel profile={renderModel.profile} />
+        <ProfilePanel profile={renderModel.profile} languageSwitcher={languageSwitcher} />
         <ContentArea
           topLevelBlocks={renderModel.topLevelBlocks}
           orderedContentItems={renderModel.orderedContentItems}

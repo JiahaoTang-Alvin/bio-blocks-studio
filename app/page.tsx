@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { getSiteConfig } from "@/lib/site-config";
-import { publicVariantCookieName } from "@/lib/public-variant-cookies";
-import { buildRenderModel, getVariantAllowSeoIndex, materializeSiteConfig, resolveLocaleFromAcceptLanguage, resolvePublicVariantId } from "@/lib/utils";
+import { publicLocaleCookieName, publicVariantCookieName } from "@/lib/public-variant-cookies";
+import {
+  buildRenderModel,
+  getAvailableLanguagesForVariant,
+  getVariantAllowSeoIndex,
+  materializeSiteConfig,
+  resolvePublicLocale,
+  resolvePublicVariantId
+} from "@/lib/utils";
 import { SiteLayout } from "@/components/site/SiteLayout";
 
 export const dynamic = "force-dynamic";
@@ -44,9 +51,18 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const { config } = await getPublicSiteContext();
+  const { baseConfig, config, variantId, locale } = await getPublicSiteContext();
   const model = buildRenderModel(config);
-  return <SiteLayout config={config} renderModel={model} />;
+  return (
+    <SiteLayout
+      config={config}
+      renderModel={model}
+      languageSwitcher={{
+        currentLocale: locale,
+        languages: getAvailableLanguagesForVariant(baseConfig, variantId)
+      }}
+    />
+  );
 }
 
 async function getPublicSiteContext() {
@@ -54,7 +70,7 @@ async function getPublicSiteContext() {
   const cookieStore = await cookies();
   const requestHeaders = await headers();
   const variantId = resolvePublicVariantId(config, cookieStore.get(publicVariantCookieName)?.value);
-  const locale = resolveLocaleFromAcceptLanguage(config, requestHeaders.get("accept-language"), variantId);
+  const locale = resolvePublicLocale(config, cookieStore.get(publicLocaleCookieName)?.value, requestHeaders.get("accept-language"), variantId);
   return { baseConfig: config, config: materializeSiteConfig(config, variantId, locale), variantId, locale };
 }
 

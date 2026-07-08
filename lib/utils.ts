@@ -264,6 +264,19 @@ export function resolveLocaleFromAcceptLanguage(config: SiteConfig, acceptLangua
   return mainLocale;
 }
 
+export function resolvePublicLocale(config: SiteConfig, cookieLocale: string | undefined, acceptLanguage: string | null, variantId = getMainVariantId(config)) {
+  const enabledLanguages = getAvailableLanguagesForVariant(config, variantId);
+  const mainLocale = getVariantMainLocale(config, variantId);
+  const normalizedCookieLocale = cookieLocale?.trim().toLowerCase();
+
+  if (normalizedCookieLocale) {
+    const matchedCookieLocale = enabledLanguages.find((language) => language.code.toLowerCase() === normalizedCookieLocale);
+    if (matchedCookieLocale) return matchedCookieLocale.code;
+  }
+
+  return resolveLocaleFromAcceptLanguage(config, acceptLanguage, variantId) || mainLocale;
+}
+
 function getVariantLanguageIsEnabled(config: SiteConfig, variantId: string, locale: string) {
   const variant = config.settings.variants.variants.find((item) => item.id === variantId);
   const languageSettings = variant?.languageSettings;

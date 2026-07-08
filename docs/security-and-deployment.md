@@ -70,7 +70,7 @@ config/site-config.json
 
 The config file is public-readable through its Blob URL, so do not store secrets, private notes, unpublished credentials, or sensitive personal data inside `SiteConfig`.
 
-The admin editor can export and import this config as JSON from **项目设置**. Importing validates the JSON and updates the current editor draft first; the imported config is written to Vercel Blob only after the admin clicks save.
+The admin editor can export and import scoped JSON from **项目设置**. The config section shows the active version/language badges; export serializes the current materialized scope, and import validates the JSON before writing its content snapshot into that same current scope. The imported content is written to Vercel Blob only after the admin clicks save.
 
 Current editable project settings include:
 
@@ -92,7 +92,7 @@ The project settings modal is split into these admin sections:
 - SEO advanced metadata.
 - Combined multilingual and multi-version settings, where each version controls its own language snapshots.
 - Appearance controls.
-- Config import/export.
+- Scoped config import/export.
 
 ## Local Development
 

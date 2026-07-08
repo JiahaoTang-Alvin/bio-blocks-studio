@@ -517,10 +517,21 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
   }
 
   function exportConfig() {
-    const blob = new Blob([JSON.stringify(baseConfig, null, 2)], { type: "application/json" });
+    const scopedConfig: SiteConfig = {
+      ...config,
+      contentVariants: {},
+      updatedAt: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(scopedConfig, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    const safeName = (baseConfig.settings.projectName || "site-config").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+    const activeVariant = enabledVariants.find((variant) => variant.id === resolvedActiveVariantId);
+    const activeLanguage = availableLanguages.find((language) => language.code === resolvedActiveLocale);
+    const safeName = [baseConfig.settings.projectName || "site-config", activeVariant?.name || resolvedActiveVariantId, activeLanguage?.label || resolvedActiveLocale]
+      .join("-")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
     link.href = url;
     link.download = `${safeName || "site-config"}.json`;
     document.body.appendChild(link);
@@ -539,8 +550,9 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       return;
     }
 
-    updateBaseConfig(result.data);
-    toast.success("配置已导入", { description: "检查无误后点击保存才会覆盖线上配置。" });
+    const importedConfig = normalizeContentFlowConfig(result.data);
+    updateBaseConfig(writeSiteContentSnapshot(baseConfig, resolvedActiveVariantId, resolvedActiveLocale, importedConfig));
+    toast.success("配置已导入当前作用域", { description: "检查无误后点击保存才会覆盖线上配置。" });
   }
 
   function patchProfile(patch: Partial<Profile>) {
@@ -4560,17 +4572,20 @@ function ProjectSettingsForm({
 
         {activePanel === "config" ? (
           <section className="grid gap-3 rounded-xl border border-[#EAEAEA] bg-[#FAFAFA] p-4">
+            <ScopeBadges variantName={activeVariant?.name || activeVariantId} languageName={activeLanguage?.label || activeLocale} />
             <div>
-              <p className="mt-1 text-sm text-[#64748B]">导入会覆盖当前编辑器里的草稿，确认后还需要点击保存才会发布。</p>
+              <p className="mt-1 text-sm text-[#64748B]">
+                导出只包含当前作用域内容；导入也只覆盖当前作用域。确认后还需要点击保存才会发布。
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="secondary" size="sm" onClick={onExport}>
                 <Download className="h-4 w-4" />
-                导出配置
+                导出当前作用域
               </Button>
               <Button type="button" variant="secondary" size="sm" onClick={() => fileInputRef.current?.click()}>
                 <Upload className="h-4 w-4" />
-                导入覆盖
+                导入覆盖当前作用域
               </Button>
               <input
                 ref={fileInputRef}

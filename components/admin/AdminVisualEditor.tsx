@@ -3133,9 +3133,12 @@ function SortableTextBlock({
             event.stopPropagation();
             onDelete();
           }}
-          className="pointer-events-auto absolute -left-3 -top-3 grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition hover:border-red-100 hover:bg-red-50"
+          className={cn(
+            "pointer-events-auto absolute grid place-items-center rounded-full border-2 border-white bg-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition hover:border-red-100 hover:bg-red-50",
+            device === "mobile" ? "-left-2 -top-2 h-[30px] w-[30px]" : "-left-3 -top-3 h-9 w-9"
+          )}
         >
-          <Trash2 className="h-4 w-4 text-red-500" />
+          <Trash2 className={cn("text-red-500", device === "mobile" ? "h-3.5 w-3.5" : "h-4 w-4")} />
         </button>
         <button
           type="button"
@@ -3144,9 +3147,12 @@ function SortableTextBlock({
             event.stopPropagation();
             onEdit();
           }}
-          className="pointer-events-auto absolute -right-3 -top-3 grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition hover:border-[#D8E9FF] hover:bg-[#F2F8FF]"
+          className={cn(
+            "pointer-events-auto absolute grid place-items-center rounded-full border-2 border-white bg-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition hover:border-[#D8E9FF] hover:bg-[#F2F8FF]",
+            device === "mobile" ? "-right-2 -top-2 h-[30px] w-[30px]" : "-right-3 -top-3 h-9 w-9"
+          )}
         >
-          <Pencil className="h-4 w-4" />
+          <Pencil className={cn(device === "mobile" ? "h-3.5 w-3.5" : "h-4 w-4")} />
         </button>
       </div>
     </div>
@@ -3302,9 +3308,12 @@ function SortableBlock({
             event.stopPropagation();
             onDelete();
           }}
-          className="pointer-events-auto absolute -left-3 -top-3 grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition hover:border-red-100 hover:bg-red-50"
+          className={cn(
+            "pointer-events-auto absolute grid place-items-center rounded-full border-2 border-white bg-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition hover:border-red-100 hover:bg-red-50",
+            device === "mobile" ? "-left-2 -top-2 h-[30px] w-[30px]" : "-left-3 -top-3 h-9 w-9"
+          )}
         >
-          <Trash2 className="h-4 w-4 text-red-500" />
+          <Trash2 className={cn("text-red-500", device === "mobile" ? "h-3.5 w-3.5" : "h-4 w-4")} />
         </button>
         <button
           type="button"
@@ -3313,9 +3322,12 @@ function SortableBlock({
             event.stopPropagation();
             onEdit();
           }}
-          className="pointer-events-auto absolute -right-3 -top-3 grid h-9 w-9 place-items-center rounded-full border-2 border-white bg-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition hover:border-[#D8E9FF] hover:bg-[#F2F8FF]"
+          className={cn(
+            "pointer-events-auto absolute grid place-items-center rounded-full border-2 border-white bg-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] transition hover:border-[#D8E9FF] hover:bg-[#F2F8FF]",
+            device === "mobile" ? "-right-2 -top-2 h-[30px] w-[30px]" : "-right-3 -top-3 h-9 w-9"
+          )}
         >
-          <Pencil className="h-4 w-4" />
+          <Pencil className={cn(device === "mobile" ? "h-3.5 w-3.5" : "h-4 w-4")} />
         </button>
       </div>
       <button

@@ -1,26 +1,9 @@
 import type { Profile } from "@/types/profile";
-import type { SiteLanguage } from "@/types/site-config";
 import { ProfileModuleRenderer } from "@/components/site/ProfileModuleRenderer";
-import { PublicLanguageSwitcher } from "@/components/site/PublicLanguageSwitcher";
 
-type ProfilePanelProps = {
-  profile: Profile;
-  languageSwitcher?: {
-    currentLocale: string;
-    languages: SiteLanguage[];
-  };
-};
-
-export function ProfilePanel({ profile, languageSwitcher }: ProfilePanelProps) {
+export function ProfilePanel({ profile }: { profile: Profile }) {
   return (
-    <aside className="relative lg:sticky lg:top-10 lg:min-h-[calc(100vh-5rem)] lg:self-start">
-      {languageSwitcher ? (
-        <PublicLanguageSwitcher
-          currentLocale={languageSwitcher.currentLocale}
-          languages={languageSwitcher.languages}
-          className="absolute right-2 top-2 lg:hidden"
-        />
-      ) : null}
+    <aside className="lg:sticky lg:top-10 lg:self-start">
       <div className="grid gap-5 p-1">
         {profile.moduleOrder.map((module) =>
           profile.visibleModules[module] ? (
@@ -28,13 +11,6 @@ export function ProfilePanel({ profile, languageSwitcher }: ProfilePanelProps) {
           ) : null
         )}
       </div>
-      {languageSwitcher ? (
-        <PublicLanguageSwitcher
-          currentLocale={languageSwitcher.currentLocale}
-          languages={languageSwitcher.languages}
-          className="absolute bottom-0 left-1 hidden lg:block"
-        />
-      ) : null}
     </aside>
   );
 }

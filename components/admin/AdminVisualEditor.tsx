@@ -253,6 +253,7 @@ const editorCanvasWidth: Record<LayoutDevice, number> = {
 };
 
 const desktopBreakpoint = 768;
+const adminEditorVersion = "1.0.0";
 const reservedVariantAccessCodes = new Set(["admin", "api", "icon", "_next", "favicon.ico", "reset"]);
 type ResizeMetrics = {
   left: number;
@@ -1206,9 +1207,14 @@ export function AdminVisualEditor({ initialConfig }: { initialConfig: SiteConfig
       <header className="sticky top-0 z-40 border-b border-[#EAF0F8] bg-white">
         <div className="mx-auto grid max-w-[1180px] gap-2 px-5 py-3 md:flex md:items-center md:justify-between">
           <div className="flex items-center justify-between gap-3 md:contents">
-            <div className="md:order-1">
-              <p className="text-sm font-semibold">{baseConfig.settings.projectName}</p>
-              <p className="text-xs text-[#6B7280]">{isDirty ? copy.unsaved : copy.saved}</p>
+            <div className="flex min-w-0 items-center gap-3 md:order-1">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{baseConfig.settings.projectName}</p>
+                <p className="text-xs text-[#6B7280]">{isDirty ? copy.unsaved : copy.saved}</p>
+              </div>
+              <span className="shrink-0 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                {copy.editorVersion} v{adminEditorVersion}
+              </span>
             </div>
             <div className="flex items-center justify-end gap-2 md:order-3">
               <Button variant="secondary" size="sm" onClick={() => setModal({ type: "project-settings" })}>

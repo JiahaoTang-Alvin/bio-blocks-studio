@@ -78,8 +78,8 @@ GitHub 仓库：https://github.com/JiahaoTang-Alvin/personal-site-studio
 我的后台登录密码：
 
 请按以下步骤执行：
-1. Fork 或 clone 这个仓库到我的 GitHub 账号。
-2. 在 Vercel 新建项目，导入这个 GitHub 仓库。它是 Next.js App Router 应用，需要 Vercel 运行时，不要改成 GitHub Pages 静态导出。
+1. 使用上面的 GitHub 仓库链接，在 Vercel 创建并部署一个新项目。它是 Next.js App Router 应用，需要 Vercel 运行时，不要改成 GitHub Pages 静态导出。
+2. 如果 Vercel 或 GitHub 需要授权、复制仓库、导入模板或创建项目，请按实际页面流程引导我完成。
 3. 在 Vercel 项目的 Environment Variables 里设置：
    NEXT_PUBLIC_SITE_URL=https://我的域名或 Vercel 域名
    ADMIN_PASSWORD=我上面提供的后台登录密码

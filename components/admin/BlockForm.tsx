@@ -17,7 +17,6 @@ import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/field"
 import { ImageCropUploader } from "@/components/admin/ImageCropUploader";
 import { cn, isSectionTextBlock } from "@/lib/utils";
 
-const iconPresets = ["link", "github", "twitter", "instagram", "youtube", "linkedin", "website", "activity", "map", "chef-hat"];
 const actionTypeLabels: Record<BlockActionType, string> = {
   none: "无动作/none",
   link: "前往链接/link",
@@ -77,18 +76,21 @@ export function BlockForm({
           <Input
             value={block.title}
             onChange={(event) => onPatch({ title: event.target.value })}
+            placeholder="例如：Featured Project / Internship Resume"
           />
         </Field>
         <Field label="副标题/subtitle">
           <Input
             value={block.subtitle ?? ""}
             onChange={(event) => onPatch({ subtitle: event.target.value })}
+            placeholder="可选；留空时，悬停不会展示副标题"
           />
         </Field>
         {!isSectionBlock ? <Field label="描述/description">
           <Textarea
             value={block.description ?? ""}
             onChange={(event) => onPatch({ description: event.target.value })}
+            placeholder="可选；留空时，悬停不会展示描述"
             className="min-h-28"
           />
         </Field> : null}
@@ -96,7 +98,7 @@ export function BlockForm({
           <Input
             value={block.href ?? ""}
             onChange={(event) => patchHref(event.target.value)}
-            placeholder="填入链接"
+            placeholder="https://example.com"
           />
         </Field> : null}
 
@@ -137,10 +139,11 @@ export function BlockForm({
               ))}
             </Select>
           </Field>
-          <Field label="角标/badge">
+          <Field label="左下角胶囊/badge">
             <Input
               value={block.badge ?? ""}
               onChange={(event) => onPatch({ badge: event.target.value })}
+              placeholder="例如：Featured / Award / 2026"
             />
           </Field>
           {block.actionType === "copy" ? (
@@ -153,33 +156,6 @@ export function BlockForm({
           ) : null}
         </div>
         )}
-
-        <div className="grid gap-1.5 text-sm font-medium text-[#333]">
-          <span>图标/icon</span>
-          <div className="flex flex-wrap gap-2 rounded-[18px] border border-[#EAEAEA] bg-[#FAFAFA] p-2">
-            <button
-              type="button"
-              onClick={() => onPatch({ icon: "" })}
-              className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                !block.icon ? "border-[#1677FF] bg-[#1677FF] text-white" : "border-[#EAEAEA] bg-white text-[#475569] hover:border-[#1677FF]/40"
-              }`}
-            >
-              不显示/none
-            </button>
-            {iconPresets.map((icon) => (
-              <button
-                key={icon}
-                type="button"
-                onClick={() => onPatch({ icon })}
-                className={`rounded-full border px-3 py-1.5 text-sm transition ${
-                  block.icon === icon ? "border-[#1677FF] bg-[#1677FF] text-white" : "border-[#EAEAEA] bg-white text-[#475569] hover:border-[#1677FF]/40"
-                }`}
-              >
-                {icon}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <div className="flex flex-wrap gap-4 text-sm text-[#475569]">
           <label className="flex items-center gap-2">
@@ -347,7 +323,7 @@ function inferIconFromUrl(value: string, currentIcon?: string) {
   if (!value || currentIcon === "") return currentIcon;
   const lowerValue = value.toLowerCase();
   if (lowerValue.includes("github.com")) return "github";
-  if (lowerValue.includes("twitter.com") || lowerValue.includes("x.com")) return "twitter";
+  if (lowerValue.includes("twitter.com") || lowerValue.includes("x.com")) return "x";
   if (lowerValue.includes("instagram.com")) return "instagram";
   if (lowerValue.includes("youtube.com") || lowerValue.includes("youtu.be")) return "youtube";
   if (lowerValue.includes("linkedin.com")) return "linkedin";

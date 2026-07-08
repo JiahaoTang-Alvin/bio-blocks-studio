@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Languages } from "lucide-react";
 import type { SiteLanguage } from "@/types/site-config";
 import { cn } from "@/lib/utils";
@@ -14,8 +14,22 @@ type PublicLanguageSwitcherProps = {
 
 export function PublicLanguageSwitcher({ currentLocale, languages, className, buttonClassName }: PublicLanguageSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const switcherRef = useRef<HTMLDivElement>(null);
   const visibleLanguages = languages.filter((language) => language.isEnabled).sort((a, b) => a.sortOrder - b.sortOrder);
   const currentLanguage = visibleLanguages.find((language) => language.code === currentLocale) ?? visibleLanguages[0];
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function closeOnOutsidePointer(event: PointerEvent) {
+      if (event.target instanceof Node && !switcherRef.current?.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+
+    window.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => window.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, [isOpen]);
 
   if (visibleLanguages.length <= 1 || !currentLanguage) return null;
 
@@ -29,7 +43,7 @@ export function PublicLanguageSwitcher({ currentLocale, languages, className, bu
   }
 
   return (
-    <div className={cn("relative", className)}>
+    <div ref={switcherRef} className={cn("relative", className)}>
       <button
         type="button"
         onClick={() => setIsOpen((current) => !current)}

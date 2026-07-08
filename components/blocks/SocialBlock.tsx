@@ -1,4 +1,4 @@
-import { Github, Globe2, Instagram, LinkIcon, Linkedin, Twitter, Youtube } from "lucide-react";
+import { Github, Globe2, Instagram, LinkIcon, Linkedin, X, Youtube } from "lucide-react";
 import type { Block } from "@/types/block";
 
 export function SocialBlock({ block }: { block: Block }) {
@@ -6,7 +6,7 @@ export function SocialBlock({ block }: { block: Block }) {
     block.icon === "github"
       ? Github
       : block.icon === "twitter" || block.icon === "x"
-        ? Twitter
+        ? X
         : block.icon === "instagram"
           ? Instagram
           : block.icon === "youtube"

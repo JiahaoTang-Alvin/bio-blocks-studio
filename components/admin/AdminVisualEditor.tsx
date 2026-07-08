@@ -48,7 +48,6 @@ import {
   Smartphone,
   Square,
   Trash2,
-  Twitter,
   Type,
   Upload,
   X,
@@ -183,7 +182,7 @@ const blockTemplates: {
     group: "社交媒体",
     items: [
       { label: "GitHub", description: "GitHub 链接", size: "small-square", icon: <Github />, defaultIcon: "github", defaultActionType: "link" },
-      { label: "X", description: "X / Twitter", size: "small-square", icon: <X />, defaultIcon: "twitter", defaultActionType: "link" },
+    { label: "X", description: "X / Twitter", size: "small-square", icon: <X />, defaultIcon: "x", defaultActionType: "link" },
       { label: "Instagram", description: "Instagram", size: "small-square", icon: <Instagram />, defaultIcon: "instagram", defaultActionType: "link" },
       { label: "YouTube", description: "YouTube", size: "small-square", icon: <Youtube />, defaultIcon: "youtube", defaultActionType: "link" },
       { label: "LinkedIn", description: "LinkedIn", size: "small-square", icon: <Linkedin />, defaultIcon: "linkedin", defaultActionType: "link" },
@@ -1717,12 +1716,12 @@ function InlineProfileText({
   );
 }
 
-const socialIconPresets = ["link", "github", "twitter", "instagram", "youtube", "linkedin", "website", "mail"] as const;
+const socialIconPresets = ["link", "github", "x", "instagram", "youtube", "linkedin", "website", "mail"] as const;
 
 function SocialIcon({ name }: { name?: string }) {
   const iconClass = "h-4 w-4";
   if (name === "github") return <Github className={iconClass} />;
-  if (name === "twitter" || name === "x") return <Twitter className={iconClass} />;
+  if (name === "twitter" || name === "x") return <X className={iconClass} />;
   if (name === "instagram") return <Instagram className={iconClass} />;
   if (name === "youtube") return <Youtube className={iconClass} />;
   if (name === "linkedin") return <Linkedin className={iconClass} />;
@@ -1735,7 +1734,7 @@ function inferSocialIconFromUrl(value: string, currentIcon?: string) {
   if (!value || value === "https://") return currentIcon || "link";
   const lowerValue = value.toLowerCase();
   if (lowerValue.includes("github.com")) return "github";
-  if (lowerValue.includes("twitter.com") || lowerValue.includes("x.com")) return "twitter";
+  if (lowerValue.includes("twitter.com") || lowerValue.includes("x.com")) return "x";
   if (lowerValue.includes("instagram.com")) return "instagram";
   if (lowerValue.includes("youtube.com") || lowerValue.includes("youtu.be")) return "youtube";
   if (lowerValue.includes("linkedin.com")) return "linkedin";
@@ -1746,12 +1745,23 @@ function inferSocialIconFromUrl(value: string, currentIcon?: string) {
 function inferSocialLabelFromUrl(value: string) {
   const icon = inferSocialIconFromUrl(value);
   if (icon === "github") return "GitHub";
-  if (icon === "twitter") return "X";
+  if (icon === "twitter" || icon === "x") return "X";
   if (icon === "instagram") return "Instagram";
   if (icon === "youtube") return "YouTube";
   if (icon === "linkedin") return "LinkedIn";
   if (icon === "mail") return "Email";
   return "Website";
+}
+
+function getSocialIconLabel(icon: string) {
+  if (icon === "x" || icon === "twitter") return "X";
+  if (icon === "github") return "GitHub";
+  if (icon === "youtube") return "YouTube";
+  if (icon === "linkedin") return "LinkedIn";
+  if (icon === "website") return "Website";
+  if (icon === "mail") return "Email";
+  if (icon === "instagram") return "Instagram";
+  return "Link";
 }
 
 function moveItem<T>(items: T[], oldIndex: number, newIndex: number) {
@@ -3714,7 +3724,8 @@ function TagsQuickForm({ profile, onPatch }: { profile: Profile; onPatch: (patch
 
 function SocialLinksQuickForm({ profile, onPatch }: { profile: Profile; onPatch: (patch: Partial<Profile>) => void }) {
   const orderedLinks = [...profile.socialLinks].sort(bySortOrder);
-  const [expandedLinkId, setExpandedLinkId] = useState<string | null>(orderedLinks[0]?.id ?? null);
+  const [expandedLinkIds, setExpandedLinkIds] = useState<Set<string>>(() => new Set(orderedLinks[0]?.id ? [orderedLinks[0].id] : []));
+  const allExpanded = orderedLinks.length > 0 && orderedLinks.every((link) => expandedLinkIds.has(link.id));
 
   function patchLinks(links: SocialLink[]) {
     onPatch({ socialLinks: normalizeSortOrder(links) });
@@ -3730,15 +3741,24 @@ function SocialLinksQuickForm({ profile, onPatch }: { profile: Profile; onPatch:
 
   return (
     <div className="grid gap-5 text-[#333]">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-[#64748B]">社交按钮会显示在 tags 下方，可以设置跳转或复制内容。</p>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() => {
-            const newLink: SocialLink = {
-              id: crypto.randomUUID(),
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setExpandedLinkIds(allExpanded ? new Set<string>() : new Set(orderedLinks.map((link) => link.id)))}
+          >
+            {allExpanded ? "全部折叠" : "全部展开"}
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              const newLink: SocialLink = {
+                id: crypto.randomUUID(),
                 label: "New Link",
                 icon: "link",
                 href: "https://",
@@ -3746,24 +3766,35 @@ function SocialLinksQuickForm({ profile, onPatch }: { profile: Profile; onPatch:
                 openInNewTab: true,
                 isVisible: true,
                 sortOrder: orderedLinks.length + 1
-            };
-            patchLinks([...orderedLinks, newLink]);
-            setExpandedLinkId(newLink.id);
-          }}
-        >
-          <Plus className="h-4 w-4" />
-          添加/add
-        </Button>
+              };
+              patchLinks([...orderedLinks, newLink]);
+              setExpandedLinkIds((current) => new Set([...current, newLink.id]));
+            }}
+          >
+            <Plus className="h-4 w-4" />
+            添加/add
+          </Button>
+        </div>
       </div>
       <div className="grid gap-3">
         {orderedLinks.map((link, index) => {
-          const isExpanded = expandedLinkId === link.id;
+          const isExpanded = expandedLinkIds.has(link.id);
           return (
             <div key={link.id} className="grid rounded-[18px] border border-[#EAEAEA] bg-white p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <button
                   type="button"
-                  onClick={() => setExpandedLinkId(isExpanded ? null : link.id)}
+                  onClick={() =>
+                    setExpandedLinkIds((current) => {
+                      const next = new Set(current);
+                      if (isExpanded) {
+                        next.delete(link.id);
+                      } else {
+                        next.add(link.id);
+                      }
+                      return next;
+                    })
+                  }
                   className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#F8FAFC] text-[#64748B] transition hover:bg-[#EFF6FF] hover:text-[#1E3A5F]"
                   aria-label={isExpanded ? "折叠社交媒体标签" : "展开社交媒体标签"}
                 >
@@ -3813,14 +3844,13 @@ function SocialLinksQuickForm({ profile, onPatch }: { profile: Profile; onPatch:
                     ) : null}
                   </div>
                   <Field label="图标/icon">
-                    <div className="flex flex-wrap gap-2 rounded-[18px] border border-[#EAEAEA] bg-[#FAFAFA] p-2" onClick={(event) => event.stopPropagation()}>
+                    <div className="flex flex-wrap gap-2">
                       {socialIconPresets.map((icon) => (
                         <button
                           key={icon}
                           type="button"
                           aria-pressed={link.icon === icon}
-                          onClick={(event) => {
-                            event.stopPropagation();
+                          onClick={() => {
                             updateSocial(link.id, { icon });
                           }}
                           className={cn(
@@ -3831,7 +3861,7 @@ function SocialLinksQuickForm({ profile, onPatch }: { profile: Profile; onPatch:
                           )}
                         >
                           <SocialIcon name={icon} />
-                          <span>{icon}</span>
+                          <span>{getSocialIconLabel(icon)}</span>
                         </button>
                       ))}
                     </div>

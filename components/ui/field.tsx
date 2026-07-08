@@ -3,10 +3,10 @@ import { cn } from "@/lib/utils";
 
 export function Field({ label, children, className }: { label: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
-    <label className={cn("grid gap-1.5 text-sm font-medium text-[#333]", className)}>
+    <div className={cn("grid gap-1.5 text-sm font-medium text-[#333]", className)}>
       <span>{label}</span>
       {children}
-    </label>
+    </div>
   );
 }
 

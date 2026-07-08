@@ -48,6 +48,7 @@ import {
   Smartphone,
   Square,
   Trash2,
+  Twitter,
   Type,
   Upload,
   X,
@@ -182,7 +183,7 @@ const blockTemplates: {
     group: "社交媒体",
     items: [
       { label: "GitHub", description: "GitHub 链接", size: "small-square", icon: <Github />, defaultIcon: "github", defaultActionType: "link" },
-    { label: "X", description: "X / Twitter", size: "small-square", icon: <X />, defaultIcon: "x", defaultActionType: "link" },
+    { label: "X", description: "X / Twitter", size: "small-square", icon: <Twitter />, defaultIcon: "x", defaultActionType: "link" },
       { label: "Instagram", description: "Instagram", size: "small-square", icon: <Instagram />, defaultIcon: "instagram", defaultActionType: "link" },
       { label: "YouTube", description: "YouTube", size: "small-square", icon: <Youtube />, defaultIcon: "youtube", defaultActionType: "link" },
       { label: "LinkedIn", description: "LinkedIn", size: "small-square", icon: <Linkedin />, defaultIcon: "linkedin", defaultActionType: "link" },
@@ -1721,7 +1722,7 @@ const socialIconPresets = ["link", "github", "x", "instagram", "youtube", "linke
 function SocialIcon({ name }: { name?: string }) {
   const iconClass = "h-4 w-4";
   if (name === "github") return <Github className={iconClass} />;
-  if (name === "twitter" || name === "x") return <X className={iconClass} />;
+  if (name === "twitter" || name === "x") return <Twitter className={iconClass} />;
   if (name === "instagram") return <Instagram className={iconClass} />;
   if (name === "youtube") return <Youtube className={iconClass} />;
   if (name === "linkedin") return <Linkedin className={iconClass} />;

@@ -19,6 +19,7 @@ type SiteLayoutProps = {
     currentLocale: string;
     languages: SiteLanguage[];
     accessCode: string;
+    initialPreparingLocale?: string;
   };
 };
 
@@ -48,6 +49,7 @@ export function SiteLayout({ config, renderModel, languageSwitcher }: SiteLayout
           currentLocale={languageSwitcher.currentLocale}
           languages={languageSwitcher.languages}
           accessCode={languageSwitcher.accessCode}
+          initialPreparingLocale={languageSwitcher.initialPreparingLocale}
           className="fixed left-4 top-4 z-40 md:left-6 md:top-6"
         />
       ) : null}

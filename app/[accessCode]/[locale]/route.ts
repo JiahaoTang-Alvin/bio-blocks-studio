@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSiteConfig } from "@/lib/site-config";
 import {
+  publicLanguageTransitionCookieName,
   publicLocaleCookieName,
   publicVariantCookieName,
   publicVariantRemainingCookieName,
@@ -46,6 +47,11 @@ export async function GET(
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 365
+  });
+  response.cookies.set(publicLanguageTransitionCookieName, matchedLocale, {
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60
   });
 
   return response;

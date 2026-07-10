@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSiteConfig } from "@/lib/site-config";
 import {
+  publicLanguageTransitionCookieName,
   publicLocaleCookieName,
   publicVariantCookieName,
   publicVariantRemainingCookieName,
@@ -21,6 +22,7 @@ export async function GET(request: Request, context: { params: Promise<{ accessC
   const { accessCode } = await context.params;
   if (accessCode.trim().toLowerCase() === "reset") {
     const response = NextResponse.redirect(new URL("/", request.url));
+    response.cookies.delete(publicLanguageTransitionCookieName);
     response.cookies.delete(publicLocaleCookieName);
     response.cookies.delete(publicVariantCookieName);
     response.cookies.delete(publicVariantRemainingCookieName);
@@ -36,6 +38,7 @@ export async function GET(request: Request, context: { params: Promise<{ accessC
     response.cookies.delete(publicVariantCookieName);
     response.cookies.delete(publicVariantRemainingCookieName);
     setLocaleCookie(response, mainVariantLocale);
+    setLanguageTransitionCookie(response, mainVariantLocale);
     return response;
   }
 
@@ -68,5 +71,13 @@ function setLocaleCookie(response: NextResponse, locale: string) {
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 365
+  });
+}
+
+function setLanguageTransitionCookie(response: NextResponse, locale: string) {
+  response.cookies.set(publicLanguageTransitionCookieName, locale, {
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60
   });
 }

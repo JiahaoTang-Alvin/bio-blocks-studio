@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { publicLocaleCookieName, publicVariantCookieName, publicVariantRemainingCookieName } from "@/lib/public-variant-cookies";
+import {
+  publicLanguageTransitionCookieName,
+  publicLocaleCookieName,
+  publicVariantCookieName,
+  publicVariantRemainingCookieName
+} from "@/lib/public-variant-cookies";
 
 export function proxy(request: NextRequest) {
   if (request.nextUrl.pathname !== "/") {
@@ -10,6 +15,7 @@ export function proxy(request: NextRequest) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.search = "";
     const response = NextResponse.redirect(redirectUrl);
+    response.cookies.delete(publicLanguageTransitionCookieName);
     response.cookies.delete(publicLocaleCookieName);
     response.cookies.delete(publicVariantCookieName);
     response.cookies.delete(publicVariantRemainingCookieName);

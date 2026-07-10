@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { getSiteConfig } from "@/lib/site-config";
-import { publicLocaleCookieName, publicVariantCookieName } from "@/lib/public-variant-cookies";
+import {
+  publicLanguageTransitionCookieName,
+  publicLocaleCookieName,
+  publicVariantCookieName
+} from "@/lib/public-variant-cookies";
 import {
   buildRenderModel,
   getAvailableLanguagesForVariant,
@@ -52,7 +56,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const { baseConfig, config, variantId, locale } = await getPublicSiteContext();
+  const { baseConfig, config, variantId, locale, initialPreparingLocale } = await getPublicSiteContext();
   const model = buildRenderModel(config);
   return (
     <SiteLayout
@@ -64,7 +68,8 @@ export default async function HomePage() {
         accessCode:
           variantId === getMainVariantId(baseConfig)
             ? ""
-            : baseConfig.settings.variants.variants.find((variant) => variant.id === variantId)?.accessCode ?? ""
+            : baseConfig.settings.variants.variants.find((variant) => variant.id === variantId)?.accessCode ?? "",
+        initialPreparingLocale
       }}
     />
   );
@@ -76,7 +81,9 @@ async function getPublicSiteContext() {
   const requestHeaders = await headers();
   const variantId = resolvePublicVariantId(config, cookieStore.get(publicVariantCookieName)?.value);
   const locale = resolvePublicLocale(config, cookieStore.get(publicLocaleCookieName)?.value, requestHeaders.get("accept-language"), variantId);
-  return { baseConfig: config, config: materializeSiteConfig(config, variantId, locale), variantId, locale };
+  const transitionLocale = cookieStore.get(publicLanguageTransitionCookieName)?.value;
+  const initialPreparingLocale = transitionLocale?.toLowerCase() === locale.toLowerCase() ? locale : undefined;
+  return { baseConfig: config, config: materializeSiteConfig(config, variantId, locale), variantId, locale, initialPreparingLocale };
 }
 
 function getMetadataBase(siteUrl: string) {

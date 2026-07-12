@@ -260,9 +260,9 @@ export const defaultSiteConfig: SiteConfig = {
     enablePublicShare: true,
     languages: {
       isEnabled: false,
-      mainLocale: "zh-CN",
+      mainLocale: "en",
       languages: [
-        { code: "zh-CN", label: "中文", isEnabled: true, sortOrder: 1 }
+        { code: "en", label: "English", isEnabled: true, sortOrder: 1 }
       ]
     },
     variants: {
@@ -271,14 +271,14 @@ export const defaultSiteConfig: SiteConfig = {
       variants: [
         {
           id: "main",
-          name: "主版本",
+          name: "Main version",
           accessCode: "",
           isEnabled: true,
           allowSeoIndex: true,
           sortOrder: 1,
-          mainLocale: "zh-CN",
-          languages: [{ code: "zh-CN", label: "中文", isEnabled: true, sortOrder: 1 }],
-          languageSettings: { "zh-CN": { isEnabled: true } }
+          mainLocale: "en",
+          languages: [{ code: "en", label: "English", isEnabled: true, sortOrder: 1 }],
+          languageSettings: { en: { isEnabled: true } }
         }
       ]
     }
@@ -286,3 +286,56 @@ export const defaultSiteConfig: SiteConfig = {
   contentVariants: {},
   updatedAt: now
 };
+
+export function getDefaultSiteConfig(languageTag?: string | null): SiteConfig {
+  const config = structuredClone(defaultSiteConfig);
+  if (!languageTag?.toLowerCase().startsWith("zh")) return config;
+
+  config.profile = {
+    ...config.profile,
+    displayName: "你的名字",
+    headline: "创作者 / 设计师 / 写作者",
+    bio: "用一小段文字介绍你是谁、你在做什么，以及大家在哪里可以找到你。",
+    location: "你的城市",
+    tags: ["作品集", "项目", "写作", "链接"],
+    socialLinks: config.profile.socialLinks.map((link) => link.id === "x" ? { ...link, label: "X" } : link)
+  };
+  config.blocks = config.blocks.map((block) => {
+    const translated: Record<string, Partial<typeof block>> = {
+      "text-doing": { title: "精选作品", subtitle: "把你最希望大家先看到的项目、产品和实验放在这里。" },
+      "flagship-project": { title: "代表项目", subtitle: "一个产品或案例研究", description: "用这个区块展示你的主力应用、创业项目、作品集案例或开源项目。", badge: "精选" },
+      "health-trip": { title: "个人项目", subtitle: "一个实验或原型", description: "用这个卡片展示较小的项目、设计探索或进行中的作品。", badge: "进行中" },
+      "text-daily": { title: "随笔", subtitle: "短动态、写作和个人亮点。" },
+      "daily-note": { title: "最新动态", subtitle: "你最近在做什么？", description: "分享一条简短的动态、公告或个人近况。", badge: "MVP" },
+      "text-social": { title: "社交链接" }
+    };
+    return { ...block, ...(translated[block.id] ?? {}) };
+  });
+  config.settings = {
+    ...config.settings,
+    projectName: "个人主页编辑器",
+    siteTitle: "个人主页工作室",
+    siteDescription: "一个带可视化编辑器的个人主页模板。",
+    languages: {
+      isEnabled: false,
+      mainLocale: "zh-CN",
+      languages: [{ code: "zh-CN", label: "中文", isEnabled: true, sortOrder: 1 }]
+    },
+    variants: {
+      isEnabled: false,
+      mainVariantId: "main",
+      variants: [{
+        id: "main",
+        name: "主版本",
+        accessCode: "",
+        isEnabled: true,
+        allowSeoIndex: true,
+        sortOrder: 1,
+        mainLocale: "zh-CN",
+        languages: [{ code: "zh-CN", label: "中文", isEnabled: true, sortOrder: 1 }],
+        languageSettings: { "zh-CN": { isEnabled: true } }
+      }]
+    }
+  };
+  return config;
+}

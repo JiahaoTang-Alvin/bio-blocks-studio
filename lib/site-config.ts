@@ -1,11 +1,11 @@
 import { readConfigFromBlob } from "@/lib/blob-config";
-import { defaultSiteConfig } from "@/lib/default-site-config";
+import { defaultSiteConfig, getDefaultSiteConfig } from "@/lib/default-site-config";
 import { normalizeContentFlowConfig } from "@/lib/utils";
 import type { SiteConfig } from "@/types/site-config";
 
-export async function getSiteConfig() {
+export async function getSiteConfig(languageTag?: string | null) {
   const blobConfig = await readConfigFromBlob();
-  return normalizeSiteConfig(blobConfig ?? defaultSiteConfig);
+  return normalizeSiteConfig(blobConfig ?? getDefaultSiteConfig(languageTag));
 }
 
 function normalizeSiteConfig(config: SiteConfig): SiteConfig {

@@ -5,12 +5,12 @@ import { getSiteConfig } from "@/lib/site-config";
 import { normalizeContentFlowConfig } from "@/lib/utils";
 import { validateSiteConfig } from "@/lib/validators";
 
-export async function GET() {
+export async function GET(request: Request) {
   if (!(await getCurrentSessionIsValid())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return NextResponse.json(await getSiteConfig());
+  return NextResponse.json(await getSiteConfig(request.headers.get("accept-language")));
 }
 
 export async function PUT(request: Request) {

@@ -18,7 +18,7 @@ export async function GET(
   context: { params: Promise<{ accessCode: string; locale: string }> }
 ) {
   const { accessCode, locale } = await context.params;
-  const config = await getSiteConfig();
+  const config = await getSiteConfig(request.headers.get("accept-language"));
   const variant = findVariantByAccessCode(config, accessCode);
 
   if (!variant) {

@@ -8,8 +8,8 @@ export const revalidate = 0;
 export const fetchCache = "force-no-store";
 
 export default async function AdminLoginPage() {
-  const config = await getSiteConfig();
   const requestHeaders = await headers();
+  const config = await getSiteConfig(requestHeaders.get("accept-language"));
   const initialLanguage = resolveEditorLanguageFromLanguageTag(requestHeaders.get("accept-language"));
 
   return (

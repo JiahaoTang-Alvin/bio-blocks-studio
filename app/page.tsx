@@ -76,9 +76,9 @@ export default async function HomePage() {
 }
 
 async function getPublicSiteContext() {
-  const config = await getSiteConfig();
   const cookieStore = await cookies();
   const requestHeaders = await headers();
+  const config = await getSiteConfig(requestHeaders.get("accept-language"));
   const variantId = resolvePublicVariantId(config, cookieStore.get(publicVariantCookieName)?.value);
   const locale = resolvePublicLocale(config, cookieStore.get(publicLocaleCookieName)?.value, requestHeaders.get("accept-language"), variantId);
   const transitionLocale = cookieStore.get(publicLanguageTransitionCookieName)?.value;

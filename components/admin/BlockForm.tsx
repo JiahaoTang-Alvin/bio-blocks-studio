@@ -15,6 +15,7 @@ import type { Block, BlockActionType } from "@/types/block";
 import { blockActionTypes } from "@/constants/block-types";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/field";
 import { ImageCropUploader } from "@/components/admin/ImageCropUploader";
+import { BlockIcon, blockIconPresets } from "@/components/blocks/BlockIcon";
 import { cn, isSectionTextBlock } from "@/lib/utils";
 import { editorCopy, type EditorLanguage } from "@/components/admin/editor-i18n";
 
@@ -150,6 +151,37 @@ export function BlockForm({
               placeholder={editorLanguage === "zh-CN" ? "例如：精选" : "Example: Featured"}
             />
           </Field>
+          <Field label={editorLanguage === "zh-CN" ? "右上角图标" : "Top-right Icon"} className="md:col-span-2">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                aria-pressed={!block.icon}
+                onClick={() => onPatch({ icon: "" })}
+                className={cn(
+                  "inline-grid min-h-10 grid-cols-[16px_auto] items-center gap-1.5 rounded-full border px-3 text-sm transition",
+                  !block.icon ? "border-[#1479FF] bg-[#1479FF] text-white" : "border-[#EAEAEA] bg-white text-[#475569] hover:border-[#1479FF]/40"
+                )}
+              >
+                <Minus className="h-4 w-4" />
+                <span>{editorLanguage === "zh-CN" ? "不显示" : "None"}</span>
+              </button>
+              {blockIconPresets.map((icon) => (
+                <button
+                  key={icon}
+                  type="button"
+                  aria-pressed={block.icon === icon}
+                  onClick={() => onPatch({ icon })}
+                  className={cn(
+                    "inline-grid min-h-10 grid-cols-[16px_auto] items-center gap-1.5 rounded-full border px-3 text-sm transition",
+                    block.icon === icon ? "border-[#1479FF] bg-[#1479FF] text-white" : "border-[#EAEAEA] bg-white text-[#475569] hover:border-[#1479FF]/40"
+                  )}
+                >
+                  <BlockIcon name={icon} className="h-4 w-4" />
+                  <span>{getBlockIconLabel(icon, editorLanguage)}</span>
+                </button>
+              ))}
+            </div>
+          </Field>
           {block.actionType === "copy" ? (
             <Field label={copy.blockCopyText} className="md:col-span-2">
               <Input
@@ -182,6 +214,27 @@ export function BlockForm({
 
 function getSectionMetadataValue<T extends string>(value: unknown, values: readonly T[], fallback: T): T {
   return values.includes(value as T) ? (value as T) : fallback;
+}
+
+function getBlockIconLabel(icon: string, editorLanguage: EditorLanguage) {
+  const labels: Record<string, [string, string]> = {
+    build: ["区块", "Blocks"],
+    briefcase: ["工作", "Work"],
+    "chef-hat": ["创作", "Create"],
+    "book-open": ["阅读", "Read"],
+    award: ["奖项", "Award"],
+    map: ["地点", "Map"],
+    sparkle: ["高光", "Highlight"],
+    link: ["链接", "Link"],
+    github: ["GitHub", "GitHub"],
+    x: ["X", "X"],
+    instagram: ["Instagram", "Instagram"],
+    youtube: ["YouTube", "YouTube"],
+    linkedin: ["LinkedIn", "LinkedIn"],
+    website: ["网站", "Website"],
+    mail: ["邮箱", "Email"]
+  };
+  return labels[icon]?.[editorLanguage === "zh-CN" ? 0 : 1] ?? icon;
 }
 
 function PlainTextBlockForm({

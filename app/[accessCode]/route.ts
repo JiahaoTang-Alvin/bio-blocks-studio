@@ -29,7 +29,7 @@ export async function GET(request: Request, context: { params: Promise<{ accessC
     return response;
   }
 
-  const config = await getSiteConfig();
+  const config = await getSiteConfig(request.headers.get("accept-language"));
   const mainVariantId = getMainVariantId(config);
   const mainVariantLocale = findAvailableLocaleForVariant(config, mainVariantId, accessCode);
 

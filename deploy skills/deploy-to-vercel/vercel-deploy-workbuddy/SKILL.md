@@ -36,17 +36,17 @@ If the project already has `.vercel/project.json`, the bundled script can read `
 
 3. Run the bundled script from the project directory:
    ```bash
-   bash "deploy skills/vercel-deploy-workbuddy/scripts/deploy-vercel.sh"
+   bash "deploy skills/deploy-to-vercel/vercel-deploy-workbuddy/scripts/deploy-vercel.sh"
    ```
 
    For production:
    ```bash
-   bash "deploy skills/vercel-deploy-workbuddy/scripts/deploy-vercel.sh" --prod
+   bash "deploy skills/deploy-to-vercel/vercel-deploy-workbuddy/scripts/deploy-vercel.sh" --prod
    ```
 
    For another project path:
    ```bash
-   bash "deploy skills/vercel-deploy-workbuddy/scripts/deploy-vercel.sh" --path /path/to/project --prod
+   bash "deploy skills/deploy-to-vercel/vercel-deploy-workbuddy/scripts/deploy-vercel.sh" --path /path/to/project --prod
    ```
 
 4. Return the deployment URL shown by the script. If deployment fails, return the failing command phase and the relevant error text.

@@ -5,15 +5,16 @@ set -euo pipefail
 PROJECT_PATH="."
 PROD=false
 INSPECT=true
+LOGIN=false
 
 usage() {
   cat <<'USAGE'
-Usage: deploy-vercel.sh [--path <project-dir>] [--prod] [--preview] [--no-inspect]
+Usage: deploy-vercel.sh [--path <project-dir>] [--prod] [--preview] [--no-inspect] [--login]
 
-Deploy a local project to Vercel with token-based CLI authentication.
+Deploy a local project to Vercel with Vercel CLI authentication.
 
 Environment:
-  VERCEL_TOKEN       Required unless already available in .env
+  VERCEL_TOKEN       Optional when the Vercel CLI is already logged in
   VERCEL_ORG_ID      Optional; read from .vercel/project.json when absent
   VERCEL_PROJECT_ID  Optional; read from .vercel/project.json when absent
 USAGE
@@ -39,6 +40,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-inspect)
       INSPECT=false
+      shift
+      ;;
+    --login)
+      LOGIN=true
       shift
       ;;
     -h|--help)
@@ -78,6 +83,17 @@ load_env_var() {
   return 1
 }
 
+open_url() {
+  local url="$1"
+  if command -v open >/dev/null 2>&1; then
+    open "$url" >/dev/null 2>&1 || true
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$url" >/dev/null 2>&1 || true
+  elif command -v start >/dev/null 2>&1; then
+    start "$url" >/dev/null 2>&1 || true
+  fi
+}
+
 json_value() {
   local key="$1"
   local file="$2"
@@ -93,12 +109,17 @@ try {
 ' "$key" "$file"
 }
 
-load_env_var VERCEL_TOKEN || true
+if ! command -v vercel >/dev/null 2>&1; then
+  echo "Vercel CLI not found. Installing..." >&2
+  npm install -g vercel
+fi
 
-if [[ -z "${VERCEL_TOKEN:-}" ]]; then
-  echo "Error: VERCEL_TOKEN is required. Add it to WorkBuddy environment variables or .env." >&2
+if ! command -v vercel >/dev/null 2>&1; then
+  echo "Error: Vercel CLI is still unavailable after installation." >&2
   exit 1
 fi
+
+load_env_var VERCEL_TOKEN || true
 
 if [[ -z "${VERCEL_ORG_ID:-}" && -f ".vercel/project.json" ]]; then
   VERCEL_ORG_ID="$(json_value orgId .vercel/project.json)"
@@ -110,14 +131,22 @@ if [[ -z "${VERCEL_PROJECT_ID:-}" && -f ".vercel/project.json" ]]; then
   export VERCEL_PROJECT_ID
 fi
 
-if ! command -v vercel >/dev/null 2>&1; then
-  echo "Vercel CLI not found. Installing..." >&2
-  npm install -g vercel
+if [[ "$LOGIN" == true && -z "${VERCEL_TOKEN:-}" ]]; then
+  echo "Opening Vercel login..." >&2
+  open_url "https://vercel.com/login"
+  vercel login
 fi
 
-if ! command -v vercel >/dev/null 2>&1; then
-  echo "Error: Vercel CLI is still unavailable after installation." >&2
-  exit 1
+if [[ -z "${VERCEL_TOKEN:-}" ]]; then
+  if ! vercel whoami >/dev/null 2>&1; then
+    echo "Error: Vercel CLI is not authenticated." >&2
+    echo "Run this to open login and authenticate:" >&2
+    echo "  bash \"deploy skills/deploy-to-vercel/vercel-deploy-workbuddy/scripts/deploy-vercel.sh\" --login" >&2
+    echo "For unattended deploys, create a token here and add it to WorkBuddy as VERCEL_TOKEN:" >&2
+    echo "  https://vercel.com/account/tokens" >&2
+    open_url "https://vercel.com/account/tokens"
+    exit 1
+  fi
 fi
 
 DEPLOY_ARGS=(deploy -y --no-wait)

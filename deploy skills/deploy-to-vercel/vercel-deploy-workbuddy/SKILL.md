@@ -7,16 +7,6 @@ description: General Vercel deployment helper for WorkBuddy and other AI agents.
 
 Use this skill as a portable Vercel deployment toolbox. It is intentionally generic: inspect the project, choose the right deploy path, and only ask the user for credentials or approvals the agent cannot safely obtain.
 
-## Read First
-
-If this skill is being used from the repository, read the AI deployment guide before acting:
-
-```text
-deploy skills/deploy-to-vercel/AI_VERCEL_DEPLOY_GUIDE.md
-```
-
-That guide is the canonical decision tree for auth, project linking, env vars, Blob, preview deploys, production deploys, and fallbacks.
-
 ## Bundled Scripts
 
 Run setup when the project may need auth, linking, env vars, or Blob:
